@@ -19,7 +19,7 @@ def make_env():
 
 if __name__ == "__main__":
     # Wrappa per l'algoritmo
-    vec_env = SubprocVecEnv([make_env() for _ in range(70)])
+    vec_env = SubprocVecEnv([make_env() for _ in range(100)])
 
     # Load model if it exists
     try:
@@ -27,7 +27,7 @@ if __name__ == "__main__":
         print("Model loaded successfully.")
     except FileNotFoundError:
         model = SAC("MlpPolicy", vec_env, verbose=1)
-        model.learn(total_timesteps=5_00_000, progress_bar=True)
+        model.learn(total_timesteps=5_000_000, progress_bar=True)
         file_uuid = str(uuid.uuid4())
         model.save("./recordings/ppo_self_balancing_" + file_uuid)
 

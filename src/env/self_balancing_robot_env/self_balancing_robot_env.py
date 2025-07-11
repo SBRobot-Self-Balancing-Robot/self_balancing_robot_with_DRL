@@ -12,7 +12,7 @@ from mujoco.viewer import launch_passive
 
 class SelfBalancingRobotEnv(gym.Env):
     
-    def __init__(self, environment_path: str = "./models/scene.xml", max_time: float = 10.0, max_pitch: float = 0.55, frame_skip: int = 10):
+    def __init__(self, environment_path: str = "./models/scene.xml", max_time: float = 10.0, max_pitch: float = 0.9, frame_skip: int = 10):
         """
         Initialize the SelfBalancingRobot environment.
         
@@ -133,15 +133,43 @@ class SelfBalancingRobotEnv(gym.Env):
         pos = self.data.qpos[0:2]
         # Reward is based on the pitch angle: closer to 0 is better
         # The reward is negative to encourage the robot to balance
-        max_reward = 1.0
         # pitch_reward = float((-abs(pitch)**4)*(max_reward/self.max_pitch**4) + max_reward)
+        pitch_reward = self._kernel(pitch, 0.5)
+        torque_norm = np.linalg.norm(torques)
+        vel_norm = np.linalg.norm(vel)
+        velocity_reward = self._kernel(float(vel_norm), 0.2)
+        gyro_reward = self._kernel(float(gyro[2]), 0.1)
+        pos_reward = self._kernel(float(np.linalg.norm(pos)), 0.3)
 
-        
-        return reward
+        reward = pitch_reward * velocity_reward * gyro_reward * pos_reward - 0.05 * torque_norm
+
+        return float(reward)
     
-    def _kernel(x: float, alpha: float) -> float:
+    def _wheels_reward(self) -> float:
         """
-        Re
+        Compute the reward based on the wheel torques.
+        
+        Returns:
+            float: The computed reward based on the wheel torques.
+        """
+        left_wheel_torque = self.data.ctrl[0]
+        right_wheel_torque = self.data.ctrl[1]
+        
+        wheel_vel = self.data.qvel[6:8]
+
+        angular_velocity_reward = -0.1 * (wheel_vel[0] * wheel_vel[1])  # Reward based on the angular velocity of the wheels
+
+        # Reward is based on the absolute value of the wheel torques
+        return angular_velocity_reward
+    
+    def _kernel(self, x: float, alpha: float) -> float:
+        """
+        Gaussian kernel function for reward computation.
+        Args:
+            x (float): The input value.
+            alpha (float): The bandwidth parameter for the Gaussian kernel. 
+        Returns:
+            float: The value of the Gaussian kernel at x.
         """
         return np.exp(-(x**2)/alpha)
         
