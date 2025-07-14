@@ -33,7 +33,7 @@ if __name__ == "__main__":
         model = None
 
     model = MODEL("MlpPolicy", vec_env, verbose=1)
-    model.learn(total_timesteps=10_000_000, progress_bar=True)
+    model.learn(total_timesteps=2_000_000, progress_bar=True)
     model.save(f"./recordings/new_reward_{timestamp}")
 
     # Test

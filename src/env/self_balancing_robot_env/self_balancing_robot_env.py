@@ -7,12 +7,11 @@ from mujoco import MjModel, MjData
 import os
 from scipy.spatial.transform import Rotation as R
 from mujoco.viewer import launch_passive
-import math
 
 
 class SelfBalancingRobotEnv(gym.Env):
     
-    def __init__(self, environment_path: str = "./models/scene.xml", max_time: float = 10.0, max_pitch: float = math.pi / 2, frame_skip: int = 10):
+    def __init__(self, environment_path: str = "./models/scene.xml", max_time: float = 10.0, max_pitch: float = 0.8, frame_skip: int = 10):
         """
         Initialize the SelfBalancingRobot environment.
         
@@ -82,7 +81,7 @@ class SelfBalancingRobotEnv(gym.Env):
         if truncated:
             reward -= (self.weight_fall_penalty + 10 * yaw_displacement + 10 * pos_displacement)
         elif terminated & (pos_displacement < 0.1):
-            reward += 5000  # Bonus for staying still at the end of the episode
+            reward += 500  # Bonus for staying still at the end of the episode
 
 
         # info = self._get_info()
@@ -187,15 +186,6 @@ class SelfBalancingRobotEnv(gym.Env):
         Returns:
             float: The computed reward.
         """
-        x, y, z = self._get_position()  # Ottieni la posizione del robot
-        position = np.array([x, y])
-        pos_displacement = np.linalg.norm(position - self.last_position)  # Calcola lo spostamento rispetto all'ultima posizione
-        pos_displacement_penalty = self._kernel(pos_displacement, alpha=0.05)  # Penalità per lo spostamento
-        if self.count_pos == 60:
-            self.last_position = position
-            self.count_pos = 0
-        self.count_pos += 1
-
         roll, pitch, yaw = self._get_body_orientation_angles() # Ottieni roll, pitch, yaw
         yaw_displacement = abs(yaw - self.last_yaw)  # Calcola lo spostamento angolare rispetto all'ultimo yaw
         yaw_displacement_penalty = self._kernel(yaw_displacement, alpha=0.01)  # Penalità per spostamento angolare
@@ -204,16 +194,31 @@ class SelfBalancingRobotEnv(gym.Env):
             self.count_yaw = 0
         self.count_yaw += 1
 
+        if abs(yaw) < 0.08:
+            self.last_position = self.data.qpos[:2].copy()  # Aggiorna l'ultima posizione solo se il robot è in stasi rotazionale
+
+        x, y, z = self._get_position()  # Ottieni la posizione del robot
+        position = np.array([x, y])
+        pos_displacement = np.linalg.norm(position - self.last_position)  # Calcola lo spostamento rispetto all'ultima posizione
+        pos_displacement_penalty = self._kernel(pos_displacement, alpha=0.1)  # Penalità per lo spostamento
+        # if self.count_pos == 5:
+        #     self.last_position = position
+        #     self.count_pos = 0
+        # self.count_pos += 1
+
         linear_vel_x, linear_vel_y, linear_vel_z = self._get_robot_linear_velocity() # Velocità lineare del robot (x, y, z)
         linear_norm = np.linalg.norm([linear_vel_x, linear_vel_y])
-        linear_penalty = self._kernel(linear_norm, alpha=0.01)  # Penalità per velocità lineare
+        linear_penalty = self._kernel(linear_norm, alpha=0.001) if abs(linear_norm) <= 0.001 else 10 # Penalità per velocità lineare
 
         # Dati motori/azioni
         torques = self.data.ctrl # Torque effettivamente applicati o comandi motore
         torque_norm = np.linalg.norm(torques)
         torque_penalty = self._kernel(torque_norm, alpha=0.5)
 
-        reward = yaw_displacement_penalty * pos_displacement_penalty * torque_penalty
+        if pos_displacement == 0:
+            reward = yaw_displacement_penalty * pos_displacement_penalty * torque_penalty * linear_penalty
+        else:
+            reward = yaw_displacement_penalty * pos_displacement_penalty * torque_penalty
 
         return reward
 
