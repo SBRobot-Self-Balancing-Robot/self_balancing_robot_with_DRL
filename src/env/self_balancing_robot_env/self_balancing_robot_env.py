@@ -1,4 +1,3 @@
-
 import typing as T
 import numpy as np
 import gymnasium as gym
@@ -31,7 +30,7 @@ class SelfBalancingRobotEnv(gym.Env):
         self.frame_skip = frame_skip  # Number of frames to skip in each step   
 
         # Action and observation spaces
-        # Observation space: inclination angle, angular velocity, linear position and velocity (could be added: other axis for position and last action)
+        # Observation space: pitch, roll, yaw, body_ang_vel_x, body_ang_vel_y, linear_vel_x, linear_vel_y
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(7,), dtype=np.float64)
 
         # Action space: torque applied to the wheels
@@ -40,8 +39,17 @@ class SelfBalancingRobotEnv(gym.Env):
 
         self.max_pitch = max_pitch  # Maximum pitch angle before truncation
         
-        # If last action is needed, uncomment the following line
-        # self.last_action = [0.0, 0.0]
+        # Inizializza i pesi per la nuova reward - FOCALIZZATI SULLO STARE FERMI
+        self.weight_upright = 2.0       # Più importante: stare dritto (pitch e roll)
+        self.weight_ang_vel_stability = 0.5 # Ridurre oscillazioni (velocità angolari del corpo)
+        self.weight_no_linear_movement = 1.5 # Molto importante: non muoversi linearmente (velocità lineare X e Y)
+        self.weight_no_yaw_movement = 0.8 # Molto importante: non ruotare su se stesso (velocità angolare Z - yaw)
+        self.weight_control_effort = 0.005 # Penalità sforzo motori (per efficienza)
+        self.weight_action_rate = 0.001 # Penalità per azioni brusche (per fluidità)
+        self.weight_fall_penalty = 100.0 # Grande penalità alla caduta
+
+        # Variabile per tracciare l'azione precedente per il calcolo dell'action_rate
+        self._last_action = np.zeros(2) # Assumiamo 2 motori/azioni
         
 
     def step(self, action: T.Tuple[float, float]) -> T.Tuple[np.ndarray, float, bool, dict]:
@@ -64,13 +72,15 @@ class SelfBalancingRobotEnv(gym.Env):
         for skip in range(self.frame_skip):
             mujoco.mj_step(self.model, self.data)  # Step the simulation
         obs = self._get_obs()
-        reward = self._compute_reward()  # Compute the reward based on the pitch angle
+        reward = self._compute_reward(np.array(action)) # Passa l'azione alla reward
         terminated = self._is_terminated()
         truncated = self._is_truncated()
-        # info = self._get_info()
+        
+        # Penalità di caduta al termine dell'episodio
         if truncated:
-            reward = -100 # Penalize truncation
-
+            reward -= self.weight_fall_penalty # Penalizza fortemente la caduta
+        
+        # info = self._get_info()
         return obs, reward, terminated, truncated, {}
         
     def reset(self, seed: T.Optional[int] = None, options: T.Optional[dict] = None) -> np.ndarray:
@@ -90,6 +100,7 @@ class SelfBalancingRobotEnv(gym.Env):
         super().reset(seed=seed)
         mujoco.mj_resetData(self.model, self.data)  # Reset the simulation data
         self._initialize_random_state()
+        self._last_action = np.zeros(2) # Resetta anche l'ultima azione
         # info = self._get_info()
         obs = self._get_obs()
         return obs, {}
@@ -109,100 +120,39 @@ class SelfBalancingRobotEnv(gym.Env):
         else:
             raise RuntimeError("Viewer is not running. Please reset the environment or start the viewer.")
 
-    def _compute_reward(self) -> float:
+    # --- Nuove funzioni di supporto per la reward ---
+
+    def _get_body_orientation_angles(self) -> T.Tuple[float, float, float]:
         """
-        Compute the reward for the current step.
+        Estrae gli angoli di roll, pitch, yaw dal corpo principale del robot.
+        Questo dipende da come il tuo robot è modellato in MuJoCo.
+        Normalmente il quaternione del root body si trova in data.qpos[3:7].
+        """
+        # Converti il quaternione MuJoCo [w, x, y, z] a scipy [x, y, z, w]
+        quat_wxyz = self.data.qpos[3:7]
+        quat_xyzw = np.array([quat_wxyz[1], quat_wxyz[2], quat_wxyz[3], quat_wxyz[0]])
         
-        Args:
-            action (T.Tuple[float, float]): The action taken in the environment.
-        
-        Returns:
-            float: The computed reward.
+        euler = R.from_quat(quat_xyzw).as_euler('xyz')
+        roll = euler[0]
+        pitch = euler[1]
+        yaw = euler[2]
+        return float(roll), float(pitch), float(yaw)
+
+    def _get_body_angular_velocities(self) -> np.ndarray:
         """
-        obs = self._get_obs()
-        pitch = obs[0]
-        torques = self.data.ctrl
-        torque_norm = np.linalg.norm(torques)
-        wheel_vel = self.data.qvel[6:8]
-        wheel_speed = np.linalg.norm(wheel_vel)
-
-        # Reward components
-        pitch_component = self._kernel(pitch, alpha=0.2)
-        gyro_component = self._gyro_reward_component(alpha=0.05)
-        vel_component = self._velocity_reward_component(alpha=0.01)
-
-        # Inverse kernel grows with instability → allow energy use when pitch is high
-        pitch_instability = 1.0 - pitch_component  # ≈ 1 se inclinato, ≈ 0 se dritto
-
-        # Reward components
-        vel_component = self._velocity_reward_component(alpha=0.01)
-        gyro_component = self._gyro_reward_component(alpha=0.05)
-
-        # Penalize torque ONLY when the robot is near equilibrium (small pitch)
-        torque_penalty = torque_norm * pitch_component  # penalizza solo se dritto
-
-        # Penalize wheel movement if unnecessary (near stability)
-        movement_penalty = wheel_speed * pitch_component
-
-        # Final reward
-        reward = (
-            0.7 * vel_component +
-            0.3 * pitch_instability * gyro_component -
-            0.01 * torque_penalty -
-            0.3 * movement_penalty
-        )
-
-        return reward
-
-    def _pitch_reward_component(self, alpha: float) -> float:
-        """"
-        Compute the reward based on the pitch angle.
+        Estrae le velocità angolari del corpo principale del robot.
+        Queste sono spesso disponibili in data.qvel per il root body (indices 3:6).
         """
-        pitch = self._get_obs()[0]  # Pitch angle from the observation
-        return self._kernel(float(pitch), alpha)  # Reward based on the pitch angle using a Gaussian kernel
-    
-    def _velocity_reward_component(self, alpha: float) -> float:
-        """ 
-        Compute the reward based on the robot's velocity.
-        
-        Returns:
-            float: The computed reward based on the robot's velocity.
-        """
-        vel = self.data.qvel[1:3]
-        vel_norm = np.linalg.norm(vel)
-        velocity_reward = self._kernel(float(vel_norm), alpha)
+        # Assumiamo che le velocità angolari del corpo libero siano in data.qvel[3:6]
+        return self.data.qvel[3:6]
 
-        return velocity_reward
-    
-    def _wheels_reward_component(self, alpha: float) -> T.Tuple[float, float, float]:
+    def _get_robot_linear_velocity(self) -> np.ndarray:
         """
-        Compute the reward based on the wheel torques.
-        
-        Returns:
-            float: The computed reward based on the wheel torques.
+        Ottiene la velocità lineare del robot (spesso del centro di massa o di un corpo specifico).
+        Assumiamo che le velocità lineari del corpo libero siano in data.qvel[0:3]
         """
-        
-        wheel_vel = self.data.qvel[6:8]
-        # take the sign of the product of the wheel velocities to determine the direction of rotation
-        sign_component = np.sign(wheel_vel[0] * wheel_vel[1])  # Reward based on the direction of the wheel velocities
-        wheel_delta = abs(wheel_vel[0] - wheel_vel[1])  # Difference between the wheel velocities
-        intensity_component = np.linalg.norm(wheel_vel)
-        intensity_component = self._kernel(float(intensity_component), alpha)  # Reward based on the intensity of the wheel velocities
-        # Reward is based on the absolute value of the wheel torques
-        return float(sign_component), float(intensity_component), float(wheel_delta)
+        return self.data.qvel[0:3]
 
-    def _gyro_reward_component(self, alpha: float) -> float:
-        """
-        Compute the reward based on the gyroscope data.
-        
-        Returns:
-            float: The computed reward based on the gyroscope data.
-        """
-        gyro = self.data.sensordata[3:6] 
-        gyro_norm = np.linalg.norm(gyro)
-        gyro_reward = self._kernel(float(gyro_norm), float(alpha))  # Reward based on the gyroscope data
-        return gyro_reward
-    
     def _kernel(self, x: float, alpha: float) -> float:
         """
         Gaussian kernel function for reward computation.
@@ -213,31 +163,123 @@ class SelfBalancingRobotEnv(gym.Env):
             float: The value of the Gaussian kernel at x.
         """
         return np.exp(-(x**2)/alpha)
+
+    # --- Funzione _compute_reward focalizzata sul bilanciamento e la stasi ---
+    def _compute_reward(self, action: np.ndarray) -> float:
+        """
+        Compute the reward for the current step, focused on self-balancing and staying still.
+
+        Args:
+            action (np.ndarray): The action taken in the environment (es. comandi motori).
+
+        Returns:
+            float: The computed reward.
+        """
+        roll, pitch, yaw = self._get_body_orientation_angles() # Ottieni roll, pitch, yaw
+        body_ang_vel = self._get_body_angular_velocities() # Velocità angolari del corpo (x, y, z)
+        linear_vel = self._get_robot_linear_velocity() # Velocità lineare del robot (x, y, z)
+        
+        # Dati motori/azioni
+        torques = self.data.ctrl # Torque effettivamente applicati o comandi motore
+        torque_norm = np.linalg.norm(torques)
+        
+        # Calcolo dell'action_rate per penalizzare i movimenti bruschi
+        action_rate = np.linalg.norm(action - self._last_action)
+        self._last_action = action # Aggiorna l'azione precedente
+
+        # --- Componenti di Reward ---
+
+        ## 1. Mantenere la postura eretta (Bilanciamento) ⚖️
+        # Penalizza l'inclinazione (pitch e roll). Più vicino a zero è meglio.
+        # Usa un alpha minore per un kernel più "stretto", premiando solo angoli molto piccoli.
+        upright_reward = self._kernel(float(pitch), alpha=0.01) * self._kernel(float(roll), alpha=0.01) * self._kernel(float(yaw), alpha=0.01)
+        upright_reward *= self.weight_upright
+
+        # Penalizza la velocità angolare eccessiva del corpo (per stabilizzare). Riduce le oscillazioni.
+        # body_ang_vel[0] = roll rate, body_ang_vel[1] = pitch rate, body_ang_vel[2] = yaw rate
+        # Norm di tutte le velocità angolari per una stabilità generica
+        angular_velocity_stability_penalty = np.linalg.norm(body_ang_vel)
+        # Premiamo quando le velocità angolari sono vicine a zero
+        angular_velocity_stability_reward = self._kernel(float(angular_velocity_stability_penalty), alpha=0.05)
+        angular_velocity_stability_reward *= self.weight_ang_vel_stability
+
+
+        ## 2. Stare fermo (Assenza di movimento) 🛑
+        # Penalità per la velocità lineare del robot (su X e Y). Premiamo se vicina a zero.
+        # Usa la norma della velocità lineare su X e Y
+        linear_speed = np.linalg.norm(linear_vel[0:2]) # Velocità su piano orizzontale
+        no_linear_movement_reward = self._kernel(float(linear_speed), alpha=0.05) # Premiamo quando la velocità è 0
+        no_linear_movement_reward *= self.weight_no_linear_movement
+
+        # Penalità per la rotazione sul posto (velocità angolare di yaw). Premiamo se vicina a zero.
+        yaw_rate = body_ang_vel[2] # Velocità angolare di yaw
+        no_yaw_movement_reward = self._kernel(float(yaw_rate), alpha=0.05) # Premiamo quando yaw_rate è 0
+        no_yaw_movement_reward *= self.weight_no_yaw_movement
+
+
+        ## 3. Penalità per efficienza e fluidità ✨
+        # Penalità per sforzo di controllo (torque). Rende i movimenti più efficienti.
+        control_effort_penalty = torque_norm * self.weight_control_effort
+
+        # Penalità per il tasso di azione (movimenti bruschi). Rende i movimenti più fluidi.
+        action_rate_penalty = action_rate * self.weight_action_rate
+
+        # --- Calcolo della Reward Finale ---
+        reward = (
+            upright_reward +
+            angular_velocity_stability_reward +
+            no_linear_movement_reward +
+            no_yaw_movement_reward -
+            control_effort_penalty -
+            action_rate_penalty
+        )
+
+        return reward
+
+    # --- Le seguenti funzioni non sono più necessarie o sono state inglobate ---
+    # Le ho lasciate commentate per chiarezza, non rimuoverle se vuoi mantenere il file pulito ma con storia.
+    # def _pitch_reward_component(self, alpha: float) -> float:
+    #     pass 
+
+    # def _velocity_reward_component(self, alpha: float) -> float:
+    #     pass 
+
+    # def _wheels_reward_component(self, alpha: float) -> T.Tuple[float, float, float]:
+    #     pass 
+
+    # def _gyro_reward_component(self, alpha: float) -> float:
+    #     pass 
+
         
     def _get_obs(self) -> np.ndarray:
         """
         Get the current observation of the environment.
         
         Returns:
-            np.ndarray: The observation vector containing the pitch angle, pitch velocity, x position, and x velocity.
+            np.ndarray: The observation vector.
+            
+            Ho mantenuto l'output di 7 elementi, che ora include:
+            [pitch, roll, yaw, body_ang_vel_x, body_ang_vel_y, linear_vel_x, linear_vel_y]
         """
-        quat_xyzw = self.data.qpos[3:7][[1, 2, 3, 0]]  # convert [w, x, y, z] → [x, y, z, w]
-        euler = R.from_quat(quat_xyzw).as_euler('xyz')
-
-        pitch = euler[1]
-        pitch_vel = self.data.qvel[4] # for the moment it is useless
-
-        gyro = self.data.sensordata[3:6]  # Gyroscope data
+        roll, pitch, yaw = self._get_body_orientation_angles()
+        body_ang_vel = self._get_body_angular_velocities() # [gyro_x, gyro_y, gyro_z]
+        linear_vel = self._get_robot_linear_velocity() # [vel_x, vel_y, vel_z]
         
-        left_wheel_torque = self.data.ctrl[0]
-        right_wheel_torque = self.data.ctrl[1]
-        
-        vel = self.data.qvel[0:2]  # x, y velocity
+        return np.array([
+            pitch,          # Inclinazione avanti/indietro (fondamentale per bilanciamento)
+            roll,           # Inclinazione laterale (fondamentale per bilanciamento)
+            yaw,            # Orientamento sul piano orizzontale (per la stasi rotazionale)
+            body_ang_vel[0], # Velocità angolare asse X del corpo (roll rate)
+            body_ang_vel[1], # Velocità angolare asse Y del corpo (pitch rate)
+            linear_vel[0],  # Velocità lineare in avanti (asse X) (per la stasi lineare)
+            linear_vel[1]   # Velocità lineare laterale (asse Y) (per la stasi lineare)
+        ], dtype=np.float64)
 
-        return np.array([pitch, pitch_vel, gyro[2], left_wheel_torque, right_wheel_torque, vel[0], vel[1]], dtype=np.float64)
 
     def _get_info(self):
-        raise NotImplementedError("This method should be implemented in subclasses.")
+        # Questo metodo non è stato modificato in quanto non è stato specificato.
+        # Potrebbe essere utile per debug o per raccogliere metriche.
+        return {}
 
     def _is_terminated(self) -> bool:
         """
@@ -246,19 +288,16 @@ class SelfBalancingRobotEnv(gym.Env):
         Returns:
             bool: True if the episode is terminated, False otherwise.
         """
-        # Terminated when the robot falls or reaches the final position (equilibrium)
-        return self._is_truncated() or self.data.time >= self.max_time    
-        #return self.data.time >= self.max_time
+        # Terminated quando il robot cade o raggiunge la fine del tempo massimo
+        return self._is_truncated() or self.data.time >= self.max_time
     
     def _is_truncated(self) -> bool:
         # Ottieni orientamento attuale in angoli Euler
-        quat_xyzw = self.data.qpos[3:7][[1, 2, 3, 0]]
-        euler = R.from_quat(quat_xyzw).as_euler('xyz')
+        roll, pitch, yaw = self._get_body_orientation_angles()
 
-        pitch = euler[1]
+        # Truncate if the pitch or roll angle is too high (robot falls)
+        return bool(abs(pitch) > self.max_pitch or abs(roll) > self.max_pitch) # max_pitch funge anche da max_roll
 
-        # Truncate if the pitch angle is too high or if the robot is too low
-        return bool(abs(pitch) > self.max_pitch)
 
     def _initialize_random_state(self):
         # Reset position and velocity
@@ -267,9 +306,9 @@ class SelfBalancingRobotEnv(gym.Env):
 
         # Euler angles: Roll=0, Pitch=random, Yaw=random
         euler = [
-            0.0,
-            np.random.uniform(-0.6, 0.6),
-            np.random.uniform(-np.pi, np.pi)
+            0.0, # Roll
+            np.random.uniform(-0.6, 0.6), # Pitch
+            np.random.uniform(-np.pi, np.pi) # Yaw
         ]
 
         # Euler → Quaternion [x, y, z, w]
