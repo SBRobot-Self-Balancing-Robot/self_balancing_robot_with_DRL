@@ -1,43 +1,152 @@
-import gymnasium as gym
-from stable_baselines3 import PPO, SAC
-from stable_baselines3.common.env_checker import check_env
-from stable_baselines3.common.monitor import Monitor
+"""
+Training script for the Self-Balancing Robot environment using Stable Baselines3.
+"""
+import os
+import json
 import time
-from stable_baselines3.common.vec_env import SubprocVecEnv
+import argparse
+import typing as T
+import gymnasium as gym
 
-from src.env.self_balancing_robot_env import SelfBalancingRobotEnv
+from stable_baselines3 import SAC, PPO, TD3, A2C, DDPG
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.env_checker import check_env
+
+from src.env.self_balancing_robot_env.self_balancing_robot_env import SelfBalancingRobotEnv
+
+def save_configuration(env, filename: str, folder_name: str):
+    # Save the configuration
+    if folder_name is not None:
+        path = f"./policies/{folder_name}"
+    else:
+        path = f"./policies/{filename}"
+    
+    if not os.path.exists(path):
+        # Create the configuration directory if it doesn't exist
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        
+    # Get the unwrapped environment to access its attributes
+    unwrapped_env = env.unwrapped
+    
+    # Save the configuration to a file
+    with open(f"{path}/{filename}.json", 'w') as f:
+        config = {
+            "policy": filename,
+            "max_time": unwrapped_env.max_time,
+            "max_pitch": unwrapped_env.max_pitch,
+            "frame_skip": unwrapped_env.frame_skip,
+            "weights": {
+                "upright": unwrapped_env.weight_fall_penalty,
+            }
+        }
+        json.dump(config, f, indent=4)
+
+def parse_arguments():
+    """
+    Command line argument parser for training the Self-Balancing Robot environment.
+    """
+    parser = argparse.ArgumentParser(
+        description="Training the self-balancing robot with Deep Reinforcement Learning"
+    )
+    
+    parser.add_argument("--model", type=str, default="SAC",
+                       help="Model to use for training (default: SAC). Other options: PPO, TD3, A2C, DDPG")
+    
+    parser.add_argument("--policies-folder", type=str, default="./policies",
+                       help="Folder where models are saved/loaded (default: ./policies)")
+    
+    parser.add_argument("--file-prefix", type=str, default=None,
+                       help="Base name for the saved files")
+    
+    parser.add_argument("--folder-prefix", type=str, default=None,
+                       help="Base folder name for the saved files (default: None, uses timestamp)")
+
+    parser.add_argument("--policy", type=str, default=None,
+                       help="Name of the model file to load")
+
+    parser.add_argument("--iterations", type=int, default=1_000_000,
+                       help="Number of training iterations (default: 1000000)")
+    
+    parser.add_argument("--processes", type=int, default=50,
+                       help="Number of parallel processes for training (default: 50)")
+    
+    return parser.parse_args()
 
 def make_env():
     """
-    Crea un'istanza dell'ambiente SelfBalancingRobotEnv.
+    Creates an instance of the SelfBalancingRobotEnv environment.
     """
     def _init():
-        env = gym.make("SelfBalancingRobot-v0")
-        env = Monitor(env)
-        check_env(env, warn=True)
-        return env
+        environment = gym.make("SelfBalancingRobot-v0")
+        environment = Monitor(environment)
+        check_env(environment, warn=True)
+        return environment
     return _init
 
+def _parse_model(model_name: str):
+    """
+    Parses the model name to return the corresponding Stable Baselines3 model class.
+    """
+    models = {
+        "SAC": SAC,
+        "PPO": PPO,
+        "TD3": TD3,
+        "A2C": A2C,
+        "DDPG": DDPG
+    }
+    if model_name in models:
+        return models[model_name]
+    else:
+        return models["SAC"]  # Default to SAC if the model is not recognized
+
 if __name__ == "__main__":
-    MODEL = PPO
-    MODEL_FILE = "a"
-    # Wrappa per l'algoritmo
-    vec_env = SubprocVecEnv([make_env() for _ in range(50)])
+    # Parse command line arguments
+    args = parse_arguments()
+
+    MODEL = _parse_model(args.model)
+    PROCESSES = args.processes
+    ITERATIONS = args.iterations
+    MODEL_FILE = args.policy
+    FILE_PREFIX = args.file_prefix
+    FOLDER_PREFIX = args.folder_prefix
+    POLICIES_FOLDER = args.policies_folder
+    
     timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+    if FILE_PREFIX is None:
+        FILE_PREFIX = f"{MODEL.__name__}_{timestamp}"
+    if FOLDER_PREFIX is None:
+        FOLDER_PREFIX = FILE_PREFIX
+    if MODEL_FILE is None:
+        pass
+
+    print("Training configuration:")
+    print(f"  - Model: {MODEL}")
+    print(f"  - Processes: {PROCESSES}")
+    print(f"  - Iterations: {ITERATIONS}")
+    print(f"  - Base file name: {FILE_PREFIX}")
+    print(f"  - Policies folder: {POLICIES_FOLDER}")
+    print(f"  - Model to load: {MODEL_FILE}")
+    print()
+
+    # Wrapper for the algorithm
+    vec_env = SubprocVecEnv([make_env() for _ in range(PROCESSES)])
     # Load model if it exists
     try:
-        model = MODEL.load(f"./recordings/{MODEL_FILE}", env=vec_env)
+        model = MODEL.load(f"{POLICIES_FOLDER}/{MODEL_FILE}", env=vec_env)
         print("Model loaded successfully.")
     except FileNotFoundError:
         print("No pre-trained model found, starting training from scratch.")
-        model = None
+        model = MODEL("MlpPolicy", vec_env, verbose=1)
 
-    model = MODEL("MlpPolicy", vec_env, verbose=1)
-    model.learn(total_timesteps=2_000_000, progress_bar=True)
-    model.save(f"./recordings/new_reward_{timestamp}")
+    model.learn(total_timesteps=ITERATIONS, progress_bar=True)
+    model.save(f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/{FILE_PREFIX}")
 
     # Test
     env = make_env()()
+    print(env)
+    save_configuration(env=env, filename=FILE_PREFIX, folder_name=FOLDER_PREFIX)
+
     env.reset()
     obs, _ = env.reset()
     for _ in range(10000):
