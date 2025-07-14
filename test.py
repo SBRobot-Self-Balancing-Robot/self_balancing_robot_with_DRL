@@ -1,5 +1,5 @@
 import gymnasium as gym
-from stable_baselines3 import SAC
+from stable_baselines3 import SAC, PPO
 from stable_baselines3.common.monitor import Monitor
 from src.env.self_balancing_robot_env.self_balancing_robot_env import SelfBalancingRobotEnv  # Assicura il registry dell'env
 
@@ -15,8 +15,8 @@ if __name__ == "__main__":
     env = make_env()
 
     # Carica il modello addestrato
-    model_path = "./recordings/new_reward_0"
-    model = SAC.load(model_path, env=env)
+    model_path = "./recordings/new_reward_2025-07-14_11-45-52"
+    model = PPO.load(model_path, env=env)
     print(f"Modello caricato da: {model_path}")
 
     # Esecuzione del test
@@ -25,7 +25,8 @@ if __name__ == "__main__":
         action, _states = model.predict(obs, deterministic=True)
         obs, reward, terminated, truncated, _ = env.step(action)
         env.render()
-        if terminated or truncated:
+        if terminated:
             obs, _ = env.reset()
+        
 
     env.close()

@@ -7,11 +7,12 @@ from mujoco import MjModel, MjData
 import os
 from scipy.spatial.transform import Rotation as R
 from mujoco.viewer import launch_passive
+import math
 
 
 class SelfBalancingRobotEnv(gym.Env):
     
-    def __init__(self, environment_path: str = "./models/scene.xml", max_time: float = 10.0, max_pitch: float = 1.0472, frame_skip: int = 10):
+    def __init__(self, environment_path: str = "./models/scene.xml", max_time: float = 10.0, max_pitch: float = math.pi / 2, frame_skip: int = 10):
         """
         Initialize the SelfBalancingRobot environment.
         
@@ -30,26 +31,22 @@ class SelfBalancingRobotEnv(gym.Env):
         self.frame_skip = frame_skip  # Number of frames to skip in each step   
 
         # Action and observation spaces
-        # Observation space: pitch, roll, yaw, body_ang_vel_x, body_ang_vel_y, linear_vel_x, linear_vel_y
-        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(7,), dtype=np.float64)
+        # Observation space: pitch, roll, yaw, body_ang_vel_x, body_ang_vel_y, linear_vel_x, linear_vel_y, pos_x, pos_y
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(9,), dtype=np.float64)
 
         # Action space: torque applied to the wheels
         self.action_limit = 10.0
         self.action_space = gym.spaces.Box(low=np.array([-self.action_limit, -self.action_limit]), high=np.array([self.action_limit, self.action_limit]), dtype=np.float64)
 
+        self.weight_fall_penalty = 100.0  # Penalty for falling
         self.max_pitch = max_pitch  # Maximum pitch angle before truncation
+        self.count_pos = 0
+        self.last_position = np.zeros(2)  # Last position of the robot
+        self.initial_pos = np.zeros(2)
+        self.count_yaw = 0
+        self.last_yaw = 0.0  # Last yaw angle
+        self.initial_yaw = 0.0  # Initial yaw angle
         
-        # Inizializza i pesi per la nuova reward - FOCALIZZATI SULLO STARE FERMI
-        self.weight_upright = 2.0       # Più importante: stare dritto (pitch e roll)
-        self.weight_ang_vel_stability = 0.5 # Ridurre oscillazioni (velocità angolari del corpo)
-        self.weight_no_linear_movement = 1.5 # Molto importante: non muoversi linearmente (velocità lineare X e Y)
-        self.weight_no_yaw_movement = 0.8 # Molto importante: non ruotare su se stesso (velocità angolare Z - yaw)
-        self.weight_control_effort = 0.005 # Penalità sforzo motori (per efficienza)
-        self.weight_action_rate = 0.001 # Penalità per azioni brusche (per fluidità)
-        self.weight_fall_penalty = 100.0 # Grande penalità alla caduta
-
-        # Variabile per tracciare l'azione precedente per il calcolo dell'action_rate
-        self._last_action = np.zeros(2) # Assumiamo 2 motori/azioni
         
 
     def step(self, action: T.Tuple[float, float]) -> T.Tuple[np.ndarray, float, bool, dict]:
@@ -69,17 +66,25 @@ class SelfBalancingRobotEnv(gym.Env):
                 - info (dict): Additional information about the environment.
         """
         self.data.ctrl[:] = np.clip(action, -self.action_limit, self.action_limit)  # Apply action (torque to the wheels)
-        for skip in range(self.frame_skip):
+        for _ in range(self.frame_skip):
             mujoco.mj_step(self.model, self.data)  # Step the simulation
         obs = self._get_obs()
-        reward = self._compute_reward(np.array(action)) # Passa l'azione alla reward
+        reward = self._compute_reward(np.array(action)) # Compute the reward based on the action taken
         terminated = self._is_terminated()
         truncated = self._is_truncated()
         
         # Penalità di caduta al termine dell'episodio
+        x, y, z = self._get_position()  # Ottieni la posizione del robot
+        position = np.array([x, y])
+        pos_displacement = np.linalg.norm(position - self.last_position)
+        roll, pitch, yaw = self._get_body_orientation_angles()
+        yaw_displacement = abs(yaw - self.last_yaw)
         if truncated:
-            reward -= self.weight_fall_penalty # Penalizza fortemente la caduta
-        
+            reward -= (self.weight_fall_penalty + 10 * yaw_displacement + 10 * pos_displacement)
+        elif terminated & (pos_displacement < 0.1):
+            reward += 5000  # Bonus for staying still at the end of the episode
+
+
         # info = self._get_info()
         return obs, reward, terminated, truncated, {}
         
@@ -152,6 +157,13 @@ class SelfBalancingRobotEnv(gym.Env):
         Assumiamo che le velocità lineari del corpo libero siano in data.qvel[0:3]
         """
         return self.data.qvel[0:3]
+    
+    def _get_position(self) -> np.ndarray:
+        """
+        Ottiene la posizione del robot nel mondo.
+        Assumiamo che la posizione del corpo principale sia in data.qpos[0:3].
+        """
+        return self.data.qpos[0:3]
 
     def _kernel(self, x: float, alpha: float) -> float:
         """
@@ -175,64 +187,33 @@ class SelfBalancingRobotEnv(gym.Env):
         Returns:
             float: The computed reward.
         """
+        x, y, z = self._get_position()  # Ottieni la posizione del robot
+        position = np.array([x, y])
+        pos_displacement = np.linalg.norm(position - self.last_position)  # Calcola lo spostamento rispetto all'ultima posizione
+        pos_displacement_penalty = self._kernel(pos_displacement, alpha=0.05)  # Penalità per lo spostamento
+        if self.count_pos == 60:
+            self.last_position = position
+            self.count_pos = 0
+        self.count_pos += 1
+
         roll, pitch, yaw = self._get_body_orientation_angles() # Ottieni roll, pitch, yaw
-        body_ang_vel = self._get_body_angular_velocities() # Velocità angolari del corpo (x, y, z)
-        linear_vel = self._get_robot_linear_velocity() # Velocità lineare del robot (x, y, z)
-        
+        yaw_displacement = abs(yaw - self.last_yaw)  # Calcola lo spostamento angolare rispetto all'ultimo yaw
+        yaw_displacement_penalty = self._kernel(yaw_displacement, alpha=0.01)  # Penalità per spostamento angolare
+        if self.count_yaw == 10:
+            self.last_yaw = yaw
+            self.count_yaw = 0
+        self.count_yaw += 1
+
+        linear_vel_x, linear_vel_y, linear_vel_z = self._get_robot_linear_velocity() # Velocità lineare del robot (x, y, z)
+        linear_norm = np.linalg.norm([linear_vel_x, linear_vel_y])
+        linear_penalty = self._kernel(linear_norm, alpha=0.01)  # Penalità per velocità lineare
+
         # Dati motori/azioni
         torques = self.data.ctrl # Torque effettivamente applicati o comandi motore
         torque_norm = np.linalg.norm(torques)
-        
-        # Calcolo dell'action_rate per penalizzare i movimenti bruschi
-        action_rate = np.linalg.norm(action - self._last_action)
-        self._last_action = action # Aggiorna l'azione precedente
+        torque_penalty = self._kernel(torque_norm, alpha=0.5)
 
-        # --- Componenti di Reward ---
-
-        ## 1. Mantenere la postura eretta (Bilanciamento) ⚖️
-        # Penalizza l'inclinazione (pitch e roll). Più vicino a zero è meglio.
-        # Usa un alpha minore per un kernel più "stretto", premiando solo angoli molto piccoli.
-        upright_reward = self._kernel(float(pitch), alpha=0.01) * self._kernel(float(roll), alpha=0.01) * self._kernel(float(yaw), alpha=0.01)
-        upright_reward *= self.weight_upright
-
-        # Penalizza la velocità angolare eccessiva del corpo (per stabilizzare). Riduce le oscillazioni.
-        # body_ang_vel[0] = roll rate, body_ang_vel[1] = pitch rate, body_ang_vel[2] = yaw rate
-        # Norm di tutte le velocità angolari per una stabilità generica
-        angular_velocity_stability_penalty = np.linalg.norm(body_ang_vel)
-        # Premiamo quando le velocità angolari sono vicine a zero
-        angular_velocity_stability_reward = self._kernel(float(angular_velocity_stability_penalty), alpha=0.05)
-        angular_velocity_stability_reward *= self.weight_ang_vel_stability
-
-
-        ## 2. Stare fermo (Assenza di movimento) 🛑
-        # Penalità per la velocità lineare del robot (su X e Y). Premiamo se vicina a zero.
-        # Usa la norma della velocità lineare su X e Y
-        linear_speed = np.linalg.norm(linear_vel[0:2]) # Velocità su piano orizzontale
-        no_linear_movement_reward = self._kernel(float(linear_speed), alpha=0.05) # Premiamo quando la velocità è 0
-        no_linear_movement_reward *= self.weight_no_linear_movement
-
-        # Penalità per la rotazione sul posto (velocità angolare di yaw). Premiamo se vicina a zero.
-        yaw_rate = body_ang_vel[2] # Velocità angolare di yaw
-        no_yaw_movement_reward = self._kernel(float(yaw_rate), alpha=0.05) # Premiamo quando yaw_rate è 0
-        no_yaw_movement_reward *= self.weight_no_yaw_movement
-
-
-        ## 3. Penalità per efficienza e fluidità ✨
-        # Penalità per sforzo di controllo (torque). Rende i movimenti più efficienti.
-        control_effort_penalty = torque_norm * self.weight_control_effort
-
-        # Penalità per il tasso di azione (movimenti bruschi). Rende i movimenti più fluidi.
-        action_rate_penalty = action_rate * self.weight_action_rate
-
-        # --- Calcolo della Reward Finale ---
-        reward = (
-            upright_reward +
-            angular_velocity_stability_reward +
-            no_linear_movement_reward +
-            no_yaw_movement_reward -
-            control_effort_penalty -
-            action_rate_penalty
-        )
+        reward = yaw_displacement_penalty * pos_displacement_penalty * torque_penalty
 
         return reward
 
@@ -264,15 +245,18 @@ class SelfBalancingRobotEnv(gym.Env):
         roll, pitch, yaw = self._get_body_orientation_angles()
         body_ang_vel = self._get_body_angular_velocities() # [gyro_x, gyro_y, gyro_z]
         linear_vel = self._get_robot_linear_velocity() # [vel_x, vel_y, vel_z]
+        x, y, z = self._get_position() # [pos_x, pos_y, pos_z]
         
         return np.array([
             pitch,          # Inclinazione avanti/indietro (fondamentale per bilanciamento)
             roll,           # Inclinazione laterale (fondamentale per bilanciamento)
             yaw,            # Orientamento sul piano orizzontale (per la stasi rotazionale)
-            body_ang_vel[0], # Velocità angolare asse X del corpo (roll rate)
             body_ang_vel[1], # Velocità angolare asse Y del corpo (pitch rate)
+            body_ang_vel[2], # Velocità angolare asse Z del corpo (yaw rate)
             linear_vel[0],  # Velocità lineare in avanti (asse X) (per la stasi lineare)
-            linear_vel[1]   # Velocità lineare laterale (asse Y) (per la stasi lineare)
+            linear_vel[1],  # Velocità lineare laterale (asse Y) (per la stasi lineare)
+            x,              # Posizione del robot (asse X)
+            y,              # Posizione del robot (asse Y)
         ], dtype=np.float64)
 
 
@@ -296,12 +280,14 @@ class SelfBalancingRobotEnv(gym.Env):
         roll, pitch, yaw = self._get_body_orientation_angles()
 
         # Truncate if the pitch or roll angle is too high (robot falls)
-        return bool(abs(pitch) > self.max_pitch or abs(roll) > self.max_pitch) # max_pitch funge anche da max_roll
+        return bool(abs(pitch) > self.max_pitch or abs(roll) > 0.06 ) # pitch, roll, yaw thresholds
 
 
     def _initialize_random_state(self):
         # Reset position and velocity
         self.data.qpos[:3] = [np.random.uniform(-0.5, 0.5), np.random.uniform(-0.5, 0.5), 0.25]  # Initial position (x, y, z)
+        self.last_position = self.data.qpos[:2].copy()
+        self.initial_pos = self.data.qpos[:2].copy()
         self.data.qvel[:] = 0.0  # Initial speed
 
         # Euler angles: Roll=0, Pitch=random, Yaw=random
@@ -314,3 +300,5 @@ class SelfBalancingRobotEnv(gym.Env):
         # Euler → Quaternion [x, y, z, w]
         quat_xyzw = R.from_euler('xyz', euler).as_quat()
         self.data.qpos[3:7] = [quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]]
+        self.last_yaw = euler[2]
+        self.initial_yaw = euler[2]

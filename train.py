@@ -19,7 +19,7 @@ def make_env():
     return _init
 
 if __name__ == "__main__":
-    MODEL = SAC
+    MODEL = PPO
     MODEL_FILE = "a"
     # Wrappa per l'algoritmo
     vec_env = SubprocVecEnv([make_env() for _ in range(50)])
@@ -33,7 +33,7 @@ if __name__ == "__main__":
         model = None
 
     model = MODEL("MlpPolicy", vec_env, verbose=1)
-    model.learn(total_timesteps=500_000, progress_bar=True)
+    model.learn(total_timesteps=10_000_000, progress_bar=True)
     model.save(f"./recordings/new_reward_{timestamp}")
 
     # Test
