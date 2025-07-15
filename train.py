@@ -8,8 +8,8 @@ import argparse
 import typing as T
 import gymnasium as gym
 
-from stable_baselines3 import SAC, PPO, TD3, A2C, DDPG
 from stable_baselines3.common.monitor import Monitor
+from stable_baselines3 import SAC, PPO, TD3, A2C, DDPG
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.env_checker import check_env
 
@@ -50,8 +50,8 @@ def parse_arguments():
         description="Training the self-balancing robot with Deep Reinforcement Learning"
     )
     
-    parser.add_argument("--model", type=str, default="SAC",
-                       help="Model to use for training (default: SAC). Other options: PPO, TD3, A2C, DDPG")
+    parser.add_argument("--model", type=str, default="PPO",
+                       help="Model to use for training (default: PPO). Other options: PPO, TD3, A2C, DDPG")
     
     parser.add_argument("--policies-folder", type=str, default="./policies",
                        help="Folder where models are saved/loaded (default: ./policies)")

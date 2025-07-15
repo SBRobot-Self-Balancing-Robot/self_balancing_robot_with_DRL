@@ -87,15 +87,7 @@ class SelfBalancingRobotEnv(gym.Env):
         if truncated:
             reward -= (self.weight_fall_penalty + 10 * yaw_displacement + 10 * pos_displacement)
         elif terminated and (pos_displacement < 0.1):
-            reward += 400  # Bonus for staying still at the end of the episode
-
-        if terminated and (abs(pitch) < 0.08):
-            reward += 100 - np.dot([linear_vel_x, linear_vel_y], self.last_direction)
-        
-        if self.count_dir == 5:
-            self.count_dir = 0
-            self.last_direction = [linear_vel_x, linear_vel_y]
-        self.count_dir += 1
+            reward += 500  # Bonus for staying still at the end of the episode
 
         return obs, float(reward), terminated, truncated, {}
 
@@ -219,14 +211,21 @@ class SelfBalancingRobotEnv(gym.Env):
 
         linear_vel_x, linear_vel_y, linear_vel_z = self._get_robot_linear_velocity()
         linear_norm = np.linalg.norm([linear_vel_x, linear_vel_y])
-        linear_penalty = self._kernel(float(linear_norm), alpha=0.0001)
+        linear_penalty = self._kernel(float(linear_norm), alpha=0.001)
+
+        linear_direction = np.dot([linear_vel_x, linear_vel_y], self.last_direction)
+        
+        if self.count_dir == 5:
+            self.count_dir = 0
+            self.last_direction = [linear_vel_x, linear_vel_y]
+        self.count_dir += 1
 
         torques = self.data.ctrl
         torque_norm = np.linalg.norm(torques)
         torque_penalty = self._kernel(float(torque_norm), alpha=0.5)
 
         if pos_displacement == 0.0:
-            reward = yaw_displacement_penalty * torque_penalty * linear_penalty
+            reward = yaw_displacement_penalty * torque_penalty * linear_penalty - linear_direction
         else:
             reward = yaw_displacement_penalty * torque_penalty * pos_displacement_penalty
 
