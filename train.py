@@ -13,6 +13,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.env_checker import check_env
 
 from src.env.self_balancing_robot_env.self_balancing_robot_env import SelfBalancingRobotEnv
+from src.env.wrappers.reward import RewardWrapper
 
 def save_configuration(env, xml: str, model: str, filename: str, folder_name: str, iterations: int, processes: int):
     # Save the configuration
@@ -87,10 +88,11 @@ def parse_arguments():
 
 def make_env():
     """
-    Creates an instance of the SelfBalancingRobotEnv environment.
+    Creates an instance of the SelfBalancingRobotEnv environment wrapped with RewardWrapper.
     """
     def _init():
-        environment = gym.make("SelfBalancingRobot-v0")
+        environment = SelfBalancingRobotEnv()  # Usa direttamente SelfBalancingRobotEnv
+        environment = RewardWrapper(environment)  # Applica il RewardWrapper
         environment = Monitor(environment)
         check_env(environment, warn=True)
         return environment
@@ -123,14 +125,12 @@ if __name__ == "__main__":
     FILE_PREFIX = args.file_prefix
     FOLDER_PREFIX = args.folder_prefix
     POLICIES_FOLDER = args.policies_folder
-    
+
     timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
     if FILE_PREFIX is None:
         FILE_PREFIX = f"{MODEL.__name__}_{timestamp}"
     if FOLDER_PREFIX is None:
         FOLDER_PREFIX = FILE_PREFIX
-    if MODEL_FILE is None:
-        pass
 
     print("Training configuration:")
     print(f"  - Model: {MODEL}")
@@ -156,8 +156,10 @@ if __name__ == "__main__":
 
     # Test
     env = make_env()()
-    print(env)
-    save_configuration(env=env, xml=XML_FILE, model=MODEL.__name__, filename=FILE_PREFIX, folder_name=FOLDER_PREFIX, iterations=ITERATIONS, processes=PROCESSES)
+    save_configuration(
+        env=env, xml=XML_FILE, model=MODEL.__name__, filename=FILE_PREFIX,
+        folder_name=FOLDER_PREFIX, iterations=ITERATIONS, processes=PROCESSES
+    )
 
     env.reset()
     obs, _ = env.reset()

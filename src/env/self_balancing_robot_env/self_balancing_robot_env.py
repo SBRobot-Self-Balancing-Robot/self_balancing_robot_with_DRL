@@ -84,22 +84,11 @@ class SelfBalancingRobotEnv(gym.Env):
         
         obs = self._get_obs()
         
-        reward = self._compute_reward(np.array(action)) # Compute the reward based on the action taken
-        
         terminated = self._is_terminated()
         
         truncated = self._is_truncated()
         
-        # Penalità di caduta al termine dell'episodio
-        position = np.array([self.x, self.y])
-        pos_displacement = np.linalg.norm(position - self.last_position)
-        yaw_displacement = abs(self.yaw - self.last_yaw)
-        if truncated:
-            reward -= (self.weight_fall_penalty + 10 * yaw_displacement + 10 * pos_displacement)
-        elif terminated and (pos_displacement < 0.1):
-            reward += 500  # Bonus for staying still at the end of the episode
-
-        return obs, float(reward), terminated, truncated, {}
+        return obs, 0.0, terminated, truncated, {}
 
     def reset(self, seed: T.Optional[int] = None, options: T.Optional[dict] = None) -> T.Tuple[np.ndarray, dict]:
         """
@@ -182,55 +171,6 @@ class SelfBalancingRobotEnv(gym.Env):
         """
         return self.data.qpos[0:3]
 
-    def _kernel(self, x: float, alpha: float) -> float:
-        """
-        Gaussian kernel function for reward computation.
-        Args:
-            x (float): The input value.
-            alpha (float): The bandwidth parameter for the Gaussian kernel. 
-        Returns:
-            float: The value of the Gaussian kernel at x.
-        """
-        return np.exp(-(x**2)/alpha)
-
-    def _compute_reward(self, action: np.ndarray) -> float:
-        """
-        Compute the reward for the current step, focused on self-balancing and staying still.
-
-        Args:
-            action (np.ndarray): The action taken in the environment (es. comandi motori).
-
-        Returns:
-            float: The computed reward.
-        """
-        yaw_displacement = abs(self.yaw - self.last_yaw)
-        yaw_displacement_penalty = self._kernel(yaw_displacement, alpha=self.alpha_yaw_displacement_penalty)
-        if self.count_yaw == 10:
-            self.last_yaw = self.yaw
-            self.count_yaw = 0
-        self.count_yaw += 1
-
-        if abs(self.yaw) < 0.08:
-            self.last_position = self.data.qpos[:2].copy()
-
-        position = np.array([self.x, self.y])
-        pos_displacement = np.linalg.norm(position - self.last_position)
-        pos_displacement_penalty = self._kernel(float(pos_displacement), alpha=self.alpha_pos_displacement_penalty)
-
-        linear_norm = np.linalg.norm([self.linear_vel[0], self.linear_vel[1]])
-        linear_penalty = self._kernel(float(linear_norm), alpha=self.alpha_linear_velocity_penalty)
-
-        torques = self.data.ctrl
-        torque_norm = np.linalg.norm(torques)
-        torque_penalty = self._kernel(float(torque_norm), alpha=self.alpha_torque_penalty)
-
-        if pos_displacement <= 0.1:
-            reward = yaw_displacement_penalty * torque_penalty * linear_penalty * pos_displacement_penalty
-        else:
-            reward = yaw_displacement_penalty * torque_penalty * pos_displacement_penalty
-
-        return reward
-        
     def _get_obs(self) -> np.ndarray:
         """
         Get the current observation of the environment.
