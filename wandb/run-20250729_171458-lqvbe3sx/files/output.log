@@ -1,0 +1,230 @@
+Training configuration:
+  - Model: <class 'stable_baselines3.ppo.ppo.PPO'>
+  - Processes: 50
+  - Iterations: 1000000
+  - Base file name: PPO_2025-07-29_17-14-58
+  - Policies folder: ./policies
+  - Model to load: None
+
+No pre-trained model found, starting training from scratch.
+Using cuda device
+/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/venv/lib/python3.12/site-packages/stable_baselines3/common/on_policy_algorithm.py:150: UserWarning: You are trying to run PPO on the GPU, but it is primarily intended to run on the CPU when not using a CNN policy (you are using ActorCriticPolicy which should be a MlpPolicy). See https://github.com/DLR-RM/stable-baselines3/issues/1245 for more info. You can pass `device='cpu'` or `export CUDA_VISIBLE_DEVICES=` to force using the CPU.Note: The model will train, but the GPU utilization will be poor and the training might take longer than on CPU.
+  warnings.warn(
+[2K---------------------------------━━━━━━━━━[0m[38;5;237m╺[0m[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m101,200/1,000,000 [0m [ [33m0:00:05[0m < [36m0:00:51[0m , [31m17,921 it/s[0m ]s[0m ]
+| rollout/           |          |
+|    ep_len_mean     | 12.1     |
+|    ep_rew_mean     | -92.3    |
+| time/              |          |
+|    fps             | 17507    |
+|    iterations      | 1        |
+|    time_elapsed    | 5        |
+|    total_timesteps | 102400   |
+---------------------------------
+[2K------------------------------------------━━━━━━━━━━[0m[38;5;237m╺[0m[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m203,200/1,000,000 [0m [ [33m0:00:37[0m < [36m0:02:21[0m , [31m5,678 it/s[0m ]s[0m ]
+| rollout/                |              |
+|    ep_len_mean          | 15.4         |
+|    ep_rew_mean          | -87.8        |
+| time/                   |              |
+|    fps                  | 5410         |
+|    iterations           | 2            |
+|    time_elapsed         | 37           |
+|    total_timesteps      | 204800       |
+| train/                  |              |
+|    approx_kl            | 0.0150572015 |
+|    clip_fraction        | 0.195        |
+|    clip_range           | 0.2          |
+|    entropy_loss         | -2.79        |
+|    explained_variance   | -0.000602    |
+|    learning_rate        | 0.0003       |
+|    loss                 | 206          |
+|    n_updates            | 10           |
+|    policy_gradient_loss | -0.0193      |
+|    std                  | 0.967        |
+|    value_loss           | 733          |
+------------------------------------------
+[2K-----------------------------------------━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[38;2;249;38;114m╸[0m[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m305,700/1,000,000 [0m [ [33m0:01:09[0m < [36m0:02:14[0m , [31m5,210 it/s[0m ]
+| rollout/                |             |
+|    ep_len_mean          | 24.1        |
+|    ep_rew_mean          | -80.6       |
+| time/                   |             |
+|    fps                  | 4423        |
+|    iterations           | 3           |
+|    time_elapsed         | 69          |
+|    total_timesteps      | 307200      |
+| train/                  |             |
+|    approx_kl            | 0.020284696 |
+|    clip_fraction        | 0.264       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -2.72       |
+|    explained_variance   | 0.468       |
+|    learning_rate        | 0.0003      |
+|    loss                 | 53.1        |
+|    n_updates            | 20          |
+|    policy_gradient_loss | -0.0343     |
+|    std                  | 0.948       |
+|    value_loss           | 185         |
+-----------------------------------------
+[2K-----------------------------------------━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[38;2;249;38;114m╸[0m[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m407,800/1,000,000 [0m [ [33m0:01:41[0m < [36m0:02:05[0m , [31m4,755 it/s[0m ]
+| rollout/                |             |
+|    ep_len_mean          | 50.4        |
+|    ep_rew_mean          | -58.8       |
+| time/                   |             |
+|    fps                  | 4044        |
+|    iterations           | 4           |
+|    time_elapsed         | 101         |
+|    total_timesteps      | 409600      |
+| train/                  |             |
+|    approx_kl            | 0.019600142 |
+|    clip_fraction        | 0.268       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -2.65       |
+|    explained_variance   | 0.507       |
+|    learning_rate        | 0.0003      |
+|    loss                 | 63          |
+|    n_updates            | 30          |
+|    policy_gradient_loss | -0.0341     |
+|    std                  | 0.913       |
+|    value_loss           | 205         |
+-----------------------------------------
+[2K-----------------------------------------━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[38;2;249;38;114m╸[0m[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m509,900/1,000,000 [0m [ [33m0:02:12[0m < [36m0:01:02[0m , [31m7,931 it/s[0m ]
+| rollout/                |             |
+|    ep_len_mean          | 105         |
+|    ep_rew_mean          | -7.02       |
+| time/                   |             |
+|    fps                  | 3856        |
+|    iterations           | 5           |
+|    time_elapsed         | 132         |
+|    total_timesteps      | 512000      |
+| train/                  |             |
+|    approx_kl            | 0.013716863 |
+|    clip_fraction        | 0.182       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -2.59       |
+|    explained_variance   | 0.49        |
+|    learning_rate        | 0.0003      |
+|    loss                 | 108         |
+|    n_updates            | 40          |
+|    policy_gradient_loss | -0.0245     |
+|    std                  | 0.879       |
+|    value_loss           | 253         |
+-----------------------------------------
+[2K-----------------------------------------━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[38;2;249;38;114m╸[0m[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m613,250/1,000,000 [0m [ [33m0:02:44[0m < [36m0:00:56[0m , [31m6,993 it/s[0m ]
+| rollout/                |             |
+|    ep_len_mean          | 228         |
+|    ep_rew_mean          | 134         |
+| time/                   |             |
+|    fps                  | 3733        |
+|    iterations           | 6           |
+|    time_elapsed         | 164         |
+|    total_timesteps      | 614400      |
+| train/                  |             |
+|    approx_kl            | 0.011884792 |
+|    clip_fraction        | 0.148       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -2.51       |
+|    explained_variance   | 0.54        |
+|    learning_rate        | 0.0003      |
+|    loss                 | 122         |
+|    n_updates            | 50          |
+|    policy_gradient_loss | -0.0189     |
+|    std                  | 0.852       |
+|    value_loss           | 269         |
+-----------------------------------------
+[2K-----------------------------------------━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[38;2;249;38;114m╸[0m[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m715,450/1,000,000 [0m [ [33m0:03:16[0m < [36m0:00:46[0m , [31m6,263 it/s[0m ]
+| rollout/                |             |
+|    ep_len_mean          | 414         |
+|    ep_rew_mean          | 422         |
+| time/                   |             |
+|    fps                  | 3652        |
+|    iterations           | 7           |
+|    time_elapsed         | 196         |
+|    total_timesteps      | 716800      |
+| train/                  |             |
+|    approx_kl            | 0.009956888 |
+|    clip_fraction        | 0.12        |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -2.45       |
+|    explained_variance   | 0.517       |
+|    learning_rate        | 0.0003      |
+|    loss                 | 175         |
+|    n_updates            | 60          |
+|    policy_gradient_loss | -0.0114     |
+|    std                  | 0.825       |
+|    value_loss           | 347         |
+-----------------------------------------
+[2K-----------------------------------------━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[38;2;249;38;114m╸[0m[38;5;237m━━━━━━━━━━━━━━━━━━━━━[0m [32m817,100/1,000,000 [0m [ [33m0:03:47[0m < [36m0:00:32[0m , [31m5,743 it/s[0m ]
+| rollout/                |             |
+|    ep_len_mean          | 478         |
+|    ep_rew_mean          | 605         |
+| time/                   |             |
+|    fps                  | 3599        |
+|    iterations           | 8           |
+|    time_elapsed         | 227         |
+|    total_timesteps      | 819200      |
+| train/                  |             |
+|    approx_kl            | 0.009397819 |
+|    clip_fraction        | 0.113       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -2.4        |
+|    explained_variance   | 0.285       |
+|    learning_rate        | 0.0003      |
+|    loss                 | 24.2        |
+|    n_updates            | 70          |
+|    policy_gradient_loss | -0.00555    |
+|    std                  | 0.798       |
+|    value_loss           | 705         |
+-----------------------------------------
+[2K-----------------------------------------━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[38;2;249;38;114m╸[0m[38;5;237m━━━━━━━━━[0m [32m921,050/1,000,000 [0m [ [33m0:04:19[0m < [36m0:00:15[0m , [31m5,267 it/s[0m ]
+| rollout/                |             |
+|    ep_len_mean          | 490         |
+|    ep_rew_mean          | 744         |
+| time/                   |             |
+|    fps                  | 3553        |
+|    iterations           | 9           |
+|    time_elapsed         | 259         |
+|    total_timesteps      | 921600      |
+| train/                  |             |
+|    approx_kl            | 0.009356165 |
+|    clip_fraction        | 0.126       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -2.35       |
+|    explained_variance   | 0.125       |
+|    learning_rate        | 0.0003      |
+|    loss                 | 194         |
+|    n_updates            | 80          |
+|    policy_gradient_loss | -0.00383    |
+|    std                  | 0.786       |
+|    value_loss           | 1.03e+03    |
+-----------------------------------------
+[2K-----------------------------------------━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m1,023,950/1,000,000 [0m [ [33m0:04:50[0m < [36m0:00:00[0m , [31m4,656 it/s[0m ] [31m3,736 it/s[0m ],416 it/s[0m ]
+| rollout/                |             |
+|    ep_len_mean          | 496         |
+|    ep_rew_mean          | 869         |
+| time/                   |             |
+|    fps                  | 3506        |
+|    iterations           | 10          |
+|    time_elapsed         | 291         |
+|    total_timesteps      | 1024000     |
+| train/                  |             |
+|    approx_kl            | 0.007649483 |
+|    clip_fraction        | 0.102       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -2.33       |
+|    explained_variance   | 0.0658      |
+|    learning_rate        | 0.0003      |
+|    loss                 | 85.8        |
+|    n_updates            | 90          |
+|    policy_gradient_loss | -0.00163    |
+|    std                  | 0.774       |
+|    value_loss           | 1.68e+03    |
+-----------------------------------------
+[2K[35m 100%[0m [38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m1,024,000/1,000,000 [0m [ [33m0:04:50[0m < [36m0:00:00[0m , [31m2,649 it/s[0m ]
+[?25h
+/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/venv/lib/python3.12/site-packages/stable_baselines3/common/save_util.py:284: UserWarning: Path 'policies/PPO_2025-07-29_17-14-58' does not exist. Will create it.
+  warnings.warn(f"Path '{path.parent}' does not exist. Will create it.")
+/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/venv/lib/python3.12/site-packages/stable_baselines3/common/env_checker.py:462: UserWarning: We recommend you to use a symmetric and normalized Box action space (range=[-1, 1]) cf. https://stable-baselines3.readthedocs.io/en/master/guide/rl_tips.html
+  warnings.warn(
+/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/venv/lib/python3.12/site-packages/stable_baselines3/common/env_checker.py:473: UserWarning: Your action space has dtype float64, we recommend using np.float32 to avoid cast errors.
+  warnings.warn(
+/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/venv/lib/python3.12/site-packages/glfw/__init__.py:917: GLFWError: (65542) b'GLX: GLX extension not found'
+  warnings.warn(message, GLFWError)
