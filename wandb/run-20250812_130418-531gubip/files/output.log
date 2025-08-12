@@ -1,0 +1,130 @@
+Training configuration:
+  - Model: PPO
+  - Processes: 100
+  - Iterations: 1000000
+  - Base file name: PPO_2025-08-12_13-04-18
+  - Policies folder: ./policies
+  - Model to load: PPO_2025-08-12_12-52-32
+/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/venv/lib/python3.12/site-packages/stable_baselines3/common/on_policy_algorithm.py:150: UserWarning: You are trying to run PPO on the GPU, but it is primarily intended to run on the CPU when not using a CNN policy (you are using ActorCriticPolicy which should be a MlpPolicy). See https://github.com/DLR-RM/stable-baselines3/issues/1245 for more info. You can pass `device='cpu'` or `export CUDA_VISIBLE_DEVICES=` to force using the CPU.Note: The model will train, but the GPU utilization will be poor and the training might take longer than on CPU.
+  warnings.warn(
+
+Model loaded successfully.
+[2K---------------------------------━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[38;2;249;38;114m╸[0m[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m201,500/1,000,000 [0m [ [33m0:00:09[0m < [36m0:00:39[0m , [31m20,829 it/s[0m ]
+| rollout/           |          |
+|    ep_len_mean     | 97.7     |
+|    ep_rew_mean     | -6.02    |
+| time/              |          |
+|    fps             | 20551    |
+|    iterations      | 1        |
+|    time_elapsed    | 9        |
+|    total_timesteps | 204800   |
+---------------------------------
+[2K-----------------------------------------━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[38;5;237m╺[0m[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m407,700/1,000,000 [0m [ [33m0:01:18[0m < [36m0:00:25[0m , [31m24,102 it/s[0m ]s[0m ]
+| rollout/                |             |
+|    ep_len_mean          | 207         |
+|    ep_rew_mean          | 126         |
+| time/                   |             |
+|    fps                  | 5210        |
+|    iterations           | 2           |
+|    time_elapsed         | 78          |
+|    total_timesteps      | 409600      |
+| train/                  |             |
+|    approx_kl            | 0.008201692 |
+|    clip_fraction        | 0.108       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -2.6        |
+|    explained_variance   | 0.681       |
+|    learning_rate        | 0.0003      |
+|    loss                 | 1.19e+03    |
+|    n_updates            | 60          |
+|    policy_gradient_loss | -0.0143     |
+|    std                  | 0.885       |
+|    value_loss           | 255         |
+-----------------------------------------
+[2K------------------------------------------━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[38;2;249;38;114m╸[0m[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m611,900/1,000,000 [0m [ [33m0:02:27[0m < [36m0:00:17[0m , [31m23,980 it/s[0m ]
+| rollout/                |              |
+|    ep_len_mean          | 294          |
+|    ep_rew_mean          | 262          |
+| time/                   |              |
+|    fps                  | 4163         |
+|    iterations           | 3            |
+|    time_elapsed         | 147          |
+|    total_timesteps      | 614400       |
+| train/                  |              |
+|    approx_kl            | 0.0073233806 |
+|    clip_fraction        | 0.0975       |
+|    clip_range           | 0.2          |
+|    entropy_loss         | -2.55        |
+|    explained_variance   | 0.502        |
+|    learning_rate        | 0.0003       |
+|    loss                 | 88.2         |
+|    n_updates            | 70           |
+|    policy_gradient_loss | -0.00555     |
+|    std                  | 0.864        |
+|    value_loss           | 355          |
+------------------------------------------
+[2K------------------------------------------━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[38;5;237m╺[0m[38;5;237m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m816,600/1,000,000 [0m [ [33m0:03:35[0m < [36m0:00:08[0m , [31m24,180 it/s[0m ]s[0m ]
+| rollout/                |              |
+|    ep_len_mean          | 349          |
+|    ep_rew_mean          | 330          |
+| time/                   |              |
+|    fps                  | 3797         |
+|    iterations           | 4            |
+|    time_elapsed         | 215          |
+|    total_timesteps      | 819200       |
+| train/                  |              |
+|    approx_kl            | 0.0064009414 |
+|    clip_fraction        | 0.0746       |
+|    clip_range           | 0.2          |
+|    entropy_loss         | -2.52        |
+|    explained_variance   | 0.404        |
+|    learning_rate        | 0.0003       |
+|    loss                 | 11.8         |
+|    n_updates            | 80           |
+|    policy_gradient_loss | -0.00156     |
+|    std                  | 0.848        |
+|    value_loss           | 455          |
+------------------------------------------
+[2K-----------------------------------------━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m1,019,600/1,000,000 [0m [ [33m0:04:44[0m < [36m0:00:00[0m , [31m23,793 it/s[0m ][31m23,794 it/s[0m ],780 it/s[0m ]
+| rollout/                |             |
+|    ep_len_mean          | 346         |
+|    ep_rew_mean          | 361         |
+| time/                   |             |
+|    fps                  | 3585        |
+|    iterations           | 5           |
+|    time_elapsed         | 285         |
+|    total_timesteps      | 1024000     |
+| train/                  |             |
+|    approx_kl            | 0.006564562 |
+|    clip_fraction        | 0.0792      |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -2.48       |
+|    explained_variance   | 0.356       |
+|    learning_rate        | 0.0003      |
+|    loss                 | 315         |
+|    n_updates            | 90          |
+|    policy_gradient_loss | -0.00129    |
+|    std                  | 0.83        |
+|    value_loss           | 461         |
+-----------------------------------------
+[2K[35m 100%[0m [38;2;114;156;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m1,024,000/1,000,000 [0m [ [33m0:04:44[0m < [36m0:00:00[0m , [31m? it/s[0m ]
+[?25h
+/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/venv/lib/python3.12/site-packages/stable_baselines3/common/save_util.py:284: UserWarning: Path 'policies/PPO_2025-08-12_13-04-18' does not exist. Will create it.
+  warnings.warn(f"Path '{path.parent}' does not exist. Will create it.")
+/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/venv/lib/python3.12/site-packages/stable_baselines3/common/env_checker.py:462: UserWarning: We recommend you to use a symmetric and normalized Box action space (range=[-1, 1]) cf. https://stable-baselines3.readthedocs.io/en/master/guide/rl_tips.html
+  warnings.warn(
+/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/venv/lib/python3.12/site-packages/stable_baselines3/common/env_checker.py:473: UserWarning: Your action space has dtype float64, we recommend using np.float32 to avoid cast errors.
+  warnings.warn(
+Traceback (most recent call last):
+  File "/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/train.py", line 218, in <module>
+    if terminated or truncated:
+    ^^^^^^^^^^^^
+  File "/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/venv/lib/python3.12/site-packages/gymnasium/core.py", line 337, in render
+    return self.env.render()
+           ^^^^^^^^^^^^^^^^^
+  File "/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/venv/lib/python3.12/site-packages/gymnasium/core.py", line 337, in render
+    return self.env.render()
+           ^^^^^^^^^^^^^^^^^
+  File "/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/src/env/self_balancing_robot_env/self_balancing_robot_env.py", line 128, in render
+    raise RuntimeError("Viewer is not running. Please reset the environment or start the viewer.")
+RuntimeError: Viewer is not running. Please reset the environment or start the viewer.

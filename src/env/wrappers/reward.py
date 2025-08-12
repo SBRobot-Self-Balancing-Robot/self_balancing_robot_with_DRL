@@ -51,8 +51,13 @@ class RewardCalculator:
     """
     Class to compute the reward for the SelfBalancingRobotEnv.
     """
-    def __init__(self, alpha_yaw_displacement_penalty=0.3, alpha_pos_displacement_penalty=0.1,
-                 alpha_linear_velocity_penalty=0.001, alpha_torque_penalty=0.5, weight_fall_penalty=100.0):
+    def __init__(self, 
+                 alpha_yaw_displacement_penalty=0.3, 
+                 alpha_pos_displacement_penalty=0.01,
+                 alpha_linear_velocity_penalty=0.0001, 
+                 alpha_torque_penalty=0.75, 
+                 weight_fall_penalty=100.0
+                 ):
         self.alpha_yaw_displacement_penalty = alpha_yaw_displacement_penalty
         self.alpha_pos_displacement_penalty = alpha_pos_displacement_penalty
         self.alpha_linear_velocity_penalty = alpha_linear_velocity_penalty

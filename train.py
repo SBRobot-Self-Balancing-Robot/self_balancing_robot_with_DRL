@@ -145,7 +145,7 @@ if __name__ == "__main__":
         }
     )
     print("Training configuration:")
-    print(f"  - Model: {MODEL}")
+    print(f"  - Model: {MODEL.__name__}")
     print(f"  - Processes: {PROCESSES}")
     print(f"  - Iterations: {ITERATIONS}")
     print(f"  - Base file name: {FILE_PREFIX}")
@@ -157,7 +157,7 @@ if __name__ == "__main__":
     vec_env = SubprocVecEnv([make_env() for _ in range(PROCESSES)])
     # Load model if it exists
     try:
-        model = MODEL.load(f"{POLICIES_FOLDER}/{MODEL_FILE}", env=vec_env)
+        model = MODEL.load(f"{POLICIES_FOLDER}/{MODEL_FILE}/{MODEL_FILE}", env=vec_env)
         print("Model loaded successfully.")
     except FileNotFoundError:
         print("No pre-trained model found, starting training from scratch.")

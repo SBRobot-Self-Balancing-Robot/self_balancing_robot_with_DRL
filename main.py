@@ -4,7 +4,7 @@ import time
 import os
 
 # Il file XML della scena che include il robot e l'ambiente.
-xml_file = './models/terrain_1_scene.xml'
+xml_file = './models/scene.xml'
 # Ottieni il percorso assoluto del file XML.
 # __file__ è il percorso dello script corrente (main.py).
 # os.path.dirname(__file__) è la directory 'src'.

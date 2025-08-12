@@ -1,0 +1,30 @@
+Training configuration:
+  - Model: <class 'stable_baselines3.ppo.ppo.PPO'>
+  - Processes: 100
+  - Iterations: 1000000
+  - Base file name: PPO_2025-08-12_13-00-54
+  - Policies folder: ./policies
+  - Model to load: PPO_2025-08-12_12-52-32
+Traceback (most recent call last):
+  File "/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/train.py", line 160, in <module>
+    model = MODEL.load(f"{POLICIES_FOLDER}/{MODEL_FILE}", env=vec_env)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/venv/lib/python3.12/site-packages/stable_baselines3/common/base_class.py", line 681, in load
+    data, params, pytorch_variables = load_from_zip_file(
+                                      ^^^^^^^^^^^^^^^^^^^
+  File "/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/venv/lib/python3.12/site-packages/stable_baselines3/common/save_util.py", line 403, in load_from_zip_file
+    file = open_path(load_path, "r", verbose=verbose, suffix="zip")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/umberto-francesco-carolini/anaconda3/lib/python3.12/functools.py", line 909, in wrapper
+    return dispatch(args[0].__class__)(*args, **kw)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/venv/lib/python3.12/site-packages/stable_baselines3/common/save_util.py", line 240, in open_path_str
+    return open_path_pathlib(pathlib.Path(path), mode, verbose, suffix)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/venv/lib/python3.12/site-packages/stable_baselines3/common/save_util.py", line 264, in open_path_pathlib
+    return open_path(path.open("rb"), mode, verbose, suffix)
+                     ^^^^^^^^^^^^^^^
+  File "/home/umberto-francesco-carolini/anaconda3/lib/python3.12/pathlib.py", line 1013, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+IsADirectoryError: [Errno 21] Is a directory: 'policies/PPO_2025-08-12_12-52-32'

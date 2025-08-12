@@ -1,0 +1,40 @@
+{
+  "os":  "Linux-6.14.0-27-generic-x86_64-with-glibc2.39",
+  "python":  "CPython 3.12.2",
+  "startedAt":  "2025-08-12T09:21:32.833993Z",
+  "program":  "/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/train.py",
+  "codePath":  "train.py",
+  "codePathLocal":  "train.py",
+  "git":  {
+    "remote":  "https://github.com/FraPis23/self_balancing_robot_with_DRL.git",
+    "commit":  "9adfa58d6e8a8af86290e820b6b14f9581bc116b"
+  },
+  "email":  "umbertofrancesco.carolini@poliba.it",
+  "root":  "/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL",
+  "host":  "icaro",
+  "executable":  "/home/umberto-francesco-carolini/Desktop/self_balancing_robot_with_DRL/venv/bin/python",
+  "cpu_count":  12,
+  "cpu_count_logical":  20,
+  "gpu":  "NVIDIA GeForce RTX 4060 Ti",
+  "gpu_count":  1,
+  "disk":  {
+    "/":  {
+      "total":  "1055703064576",
+      "used":  "280341377024"
+    }
+  },
+  "memory":  {
+    "total":  "67227291648"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA GeForce RTX 4060 Ti",
+      "memoryTotal":  "17175674880",
+      "cudaCores":  4352,
+      "architecture":  "Ada",
+      "uuid":  "GPU-bd55f96f-f274-4815-8d39-a20be590d8a5"
+    }
+  ],
+  "cudaVersion":  "12.4",
+  "writerId":  "uafzw7zry2kuucpccsk1mpumgfolvh12"
+}
