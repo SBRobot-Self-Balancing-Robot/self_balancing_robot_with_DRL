@@ -65,7 +65,8 @@ class RewardCalculator:
                  yaw_settle_thresh=0.08,
                  lin_settle_thresh=0.03,
                  yaw_disp_settle_thresh=0.01,
-                 torque_persist_penalty_scale=0.02
+                 torque_persist_penalty_scale=0.02,
+                 ang_vel_settle_thresh=0.12
                  ):
         self.alpha_yaw_displacement_penalty = alpha_yaw_displacement_penalty
         self.alpha_pos_displacement_penalty = alpha_pos_displacement_penalty
@@ -78,7 +79,12 @@ class RewardCalculator:
         self.yaw_settle_thresh = yaw_settle_thresh
         self.lin_settle_thresh = lin_settle_thresh
         self.yaw_disp_settle_thresh = yaw_disp_settle_thresh
+        self.ang_vel_settle_thresh = ang_vel_settle_thresh
         self.torque_persist_penalty_scale = torque_persist_penalty_scale
+        self.alpha_pitch_penalty = 5.0
+        self.alpha_velocity_penalty = 2.0
+        self.alpha_position_penalty = 1.0
+        self.alpha_yaw_penalty = 0.5
 
         # internal state for the reward calculator
         self.negative_sign = 0
@@ -90,10 +96,10 @@ class RewardCalculator:
         """
         Compute the reward for the current step, focused on self-balancing and staying still.
 
-        Reward scenarios can be:
-            - Equilibrium and still: high reward
-            - Equilibrium but moving: moderate reward that tends to negative if persistent
-            - Not in equilibrium: negative reward
+        Reward scenarios:
+            1) In equilibrium (yaw < threshold) but moving too fast: negative reward based on velocity intensity
+            2) In equilibrium (yaw < threshold) with acceptable velocity: positive reward based on yaw and velocity
+            3) Out of equilibrium: negative reward to encourage balancing
 
         Args:
             env: environment instance of SelfBalancingRobotEnv.
@@ -101,70 +107,41 @@ class RewardCalculator:
         Returns:
             float: computed reward value.
         """
-        if getattr(env, "count_yaw", None) is None:
-            env.count_yaw = 0
-        if getattr(env, "bad_motion_counter", None) is None:
-            env.bad_motion_counter = 0
+        # Initialize tracking variables if needed
+        if not hasattr(self, 'bad_motion_counter'):
+            self.bad_motion_counter = 0
+        if not hasattr(self, 'good_behavior_counter'):
+            self.good_behavior_counter = 0
+        pitch = abs(env.pitch)
+        lin_vel_norm = np.linalg.norm(env.linear_vel[:2])  # solo x,y
+        pos_deviation = np.linalg.norm([env.x, env.y])
 
-        if env.count_yaw == 10:
-            env.last_yaw = env.yaw
-            env.last_linear_vel = env.linear_vel.copy()
-            env.count_yaw = 0
-        env.count_yaw += 1
+        # Inclination penalties
+        pitch_penalty = self.alpha_pitch_penalty * pitch**2
 
-        # Count the time slices in which the yaw angle is within the threshold
-        if abs(env.yaw) < self.yaw_settle_thresh and np.linalg.norm(env.linear_vel) > self.lin_settle_thresh:
-            env.bad_motion_counter += 1
-        else:
-            env.bad_motion_counter = 0
-        
-        # Yaw component
-        yaw_displacement = abs(env.yaw - env.last_yaw)
-        yaw_displacement_penalty = self._kernel(yaw_displacement, alpha=self.alpha_yaw_displacement_penalty)
-        yaw_magnitude_penalty = self._kernel(abs(env.yaw), alpha=self.alpha_yaw_magnitude_penalty)
-        linear_penalty = self._kernel(float(np.linalg.norm(env.linear_vel)), alpha=self.alpha_linear_velocity_penalty)
+        # Movement penalties
+        velocity_penalty = self.alpha_velocity_penalty * lin_vel_norm**2
+        position_penalty = self.alpha_position_penalty * pos_deviation**2
 
-        reward = yaw_displacement_penalty * yaw_magnitude_penalty * linear_penalty
+        # Stability bonus
+        stability_bonus = np.tanh(self.good_behavior_counter / 20.0)
 
-        # Linear velocity component
-        # linear_vel_displacement = np.linalg.norm(env.linear_vel)
-        # linear_norm = np.linalg.norm([env.linear_vel[0], env.linear_vel[1]])
-        
-        if env.bad_motion_counter > 10:  
-            # penalità progressiva in base a quanto tempo rimane in quello stato
-            penalty_scale = 1 + 0.1 * (env.bad_motion_counter - 10)
-            reward /= penalty_scale
+        # Yaw penalty
+        yaw_rate = abs(env.body_ang_vel[2])
+        yaw_penalty = self.alpha_yaw_penalty * yaw_rate**2
 
-        if self.anchor_position is None:
-            # fissa l'ancora quando è stabile
-            if abs(env.yaw) < self.yaw_settle_thresh and np.linalg.norm(env.linear_vel) < self.lin_settle_thresh:
-                self.stable_counter += 1
-                if self.stable_counter >= self.anchor_lock_steps:
-                    self.anchor_position = env.data.qpos[:2].copy()
-            else:
-                self.stable_counter = 0
-            pos_penalty = 1.0
-        else:
-            pos_error = np.linalg.norm(env.data.qpos[:2] - self.anchor_position)
-            pos_penalty = self._kernel(float(pos_error), alpha=self.alpha_pos_displacement_penalty)
-        
-        
-        persistence_penalty = self.torque_persist_penalty_scale * (self.positive_sign + self.negative_sign)
-        reward -= persistence_penalty
-        # reward = self._check_torque_persistence(env, yaw_displacement_penalty, pos_penalty, linear_penalty, yaw_magnitude_penalty)
-        
-        reward -= 2*pos_penalty
-        
-        # applica eventuali regole di fine episodio
-        reward = self._check_episode_end(
-            env=env,
-            yaw_displacement=yaw_displacement,
-            yaw_magnitude_penalty=yaw_magnitude_penalty,
-            reward=reward,
-            pos_penalty=pos_penalty,
-            linear_penalty=linear_penalty,
+        # Final reward
+        reward = (
+            + 1.0 * stability_bonus
+            - pitch_penalty
+            - velocity_penalty
+            - position_penalty
+            - yaw_penalty
         )
         
+        if pitch < 0.05 and lin_vel_norm < 0.05 and np.linalg.norm(env.body_ang_vel) < 0.05:
+            reward += 2.0  # type: ignore
+
         return reward
 
     def reset(self):
@@ -175,13 +152,15 @@ class RewardCalculator:
         self.positive_sign = 0
         self.anchor_position = None
         self.stable_counter = 0
+        self.bad_motion_counter = 0
+        self.good_behavior_counter = 0
 
     def _check_episode_end(self, env, yaw_displacement, pos_penalty, linear_penalty, yaw_magnitude_penalty, reward): 
         if env._is_truncated():
             reward -= (self.weight_fall_penalty + 10 * yaw_displacement)
         elif env._is_terminated():
-            terminal_bonus = 500.0 * pos_penalty * linear_penalty * yaw_magnitude_penalty
-            reward += terminal_bonus - 3 * (self.positive_sign + self.negative_sign)
+            terminal_bonus = 500.0 # * pos_penalty * linear_penalty * yaw_magnitude_penalty
+            reward += terminal_bonus # - 3 * (self.positive_sign + self.negative_sign)
         return reward
 
     def _check_torque_persistence(self, env, yaw_displacement_penalty, pos_penalty, linear_penalty, yaw_magnitude_penalty):
@@ -213,3 +192,30 @@ class RewardCalculator:
             float: The value of the Gaussian kernel at x.
         """
         return np.exp(-(x**2)/alpha)
+
+    def _compute_velocity_penalty(self, velocity: float) -> float:
+        """
+        Compute velocity penalty that increases non-linearly with velocity.
+        
+        Args:
+            velocity (float): Linear velocity magnitude
+            
+        Returns:
+            float: Penalty value (always positive)
+        """
+        # Exponential penalty that grows rapidly for high velocities
+        return np.exp(velocity / self.lin_settle_thresh) - 1.0
+    
+    def _compute_imbalance_penalty(self, yaw_angle: float) -> float:
+        """
+        Compute penalty for being out of equilibrium.
+        
+        Args:
+            yaw_angle (float): Absolute yaw angle
+            
+        Returns:
+            float: Penalty value (always positive)
+        """
+        # Quadratic penalty that grows with angle deviation from equilibrium
+        normalized_angle = yaw_angle / self.yaw_settle_thresh
+        return 5.0 * (normalized_angle ** 2)

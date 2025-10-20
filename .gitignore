@@ -6,3 +6,6 @@ recordings/
 wandb/
 wandb/*.log
 wandb/latest-run
+*.txt
+*.TXT
+*.log

@@ -49,12 +49,15 @@ class SelfBalancingRobotEnv(gym.Env):
         self.count_yaw = 0
         self.last_yaw = 0.0 # Last yaw angle
         self.last_linear_vel = np.zeros(3) # Last linear velocity
+        
         # Initialize observation values
         self.roll, self.pitch, self.yaw = 0.0, 0.0, 0.0 # Orientation angles of the robot [roll, pitch, yaw]
         self.body_ang_vel = np.zeros(3) # Angular velocity of the robot [gyro_x, gyro_y, gyro_z]
         self.linear_vel = np.zeros(3) # Linear velocity of the robot [linear_vel_x, linear_vel_y, linear_vel_z]
         self.x, self.y, self.z = 0.0, 0.0, 0.0 # Position of the robot [pos_x, pos_y, pos_z]
         self.bad_motion_counter = 0
+        self.good_behavior_counter = 0
+        self.linear_velocity_threshold = 0.5 # Threshold for linear velocity to consider as bad motion
 
 
     def step(self, action: T.Tuple[float, float]) -> T.Tuple[np.ndarray, float, bool, bool, dict]:
@@ -220,8 +223,18 @@ class SelfBalancingRobotEnv(gym.Env):
         return self._is_truncated() or self.data.time >= self.max_time
     
     def _is_truncated(self) -> bool:
-        # Truncate if the pitch or roll angle is too high (robot falls)
-        return bool(abs(self.pitch) > self.max_pitch or abs(self.roll) > 0.06 ) # pitch, roll, yaw thresholds
+        """
+        Truncate the episode if the robot's pitch or roll exceeds the maximum allowed values
+        or if the robot exhibits bad motion (high linear velocity in both x and y directions).
+        
+        Returns:
+            bool: True if the episode is truncated, False otherwise.
+        """
+        return bool(
+            abs(self.pitch) > self.max_pitch or 
+            abs(self.roll) > 0.06 or
+            (abs(self.linear_vel[0]) > self.linear_velocity_threshold and abs(self.linear_vel[1]) > self.linear_velocity_threshold)
+            )
 
 
     def _initialize_random_state(self):
