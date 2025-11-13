@@ -14,7 +14,7 @@ from scipy.spatial.transform import Rotation as R
 
 class SelfBalancingRobotEnv(gym.Env):
     
-    def __init__(self, environment_path: str = "./models/scene.xml", max_time: float = 10.0, max_pitch: float = 0.8, frame_skip: int = 10):
+    def __init__(self, environment_path: str = "./models/scene.xml", max_time: float = 10.0, max_pitch: float = 0.8, frame_skip: int = 1):
         """
         Initialize the SelfBalancingRobot environment.
         
@@ -33,7 +33,8 @@ class SelfBalancingRobotEnv(gym.Env):
         self.model = MjModel.from_xml_path(full_path)
         self.data = MjData(self.model)
         self.max_time = max_time # Maximum time for the episode
-        self.frame_skip = frame_skip # Number of frames to skip in each step   
+        self.frame_skip = frame_skip # Number of frames to skip in each step  
+        self.time_step = self.model.opt.timestep * self.frame_skip
 
         # Observation space: pitch, roll, yaw, linear_acceleration_x, linear_acceleration_y, angular_velocity_x, angular_velocity_y, pos_x, pos_y
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(9,), dtype=np.float64)
@@ -49,7 +50,7 @@ class SelfBalancingRobotEnv(gym.Env):
         self.roll, self.pitch, self.yaw = 0.0, 0.0, 0.0 # Orientation angles of the robot [roll, pitch, yaw]
         self.linear_acceleration = np.zeros(3) # Linear acceleration of the robot [gyro_x, gyro_y, gyro_z]
         self.angular_velocity = np.zeros(3) # Angular velocity of the robot [angular_velocity_x, angular_velocity_y, angular_velocity_z]
-        self.wheels_velocity = np.zeros(2) # Angular velocity of the wheels [wheel_left_velocity, wheel_right_velocity]
+        self.wheels_position = np.zeros(2) # Angular position of the wheels [wheel_left_position, wheel_right_position]
 
 
     def step(self, action: T.Tuple[float, float]) -> T.Tuple[np.ndarray, float, bool, bool, dict]:
@@ -183,7 +184,11 @@ class SelfBalancingRobotEnv(gym.Env):
         right_pos = self.data.sensordata[right_pos_adr]
 
         # DA IMPLEMENTARE CORRETTAMENTE
-        return 0, 0
+        left_speed = (left_pos - self.wheels_position[0]) / self.time_step
+        right_speed = (right_pos - self.wheels_position[1]) / self.time_step
+        self.wheels_position[0] = left_pos
+        self.wheels_position[1] = right_pos 
+        return left_speed, right_speed
 
     def _get_obs(self) -> np.ndarray:
         """
