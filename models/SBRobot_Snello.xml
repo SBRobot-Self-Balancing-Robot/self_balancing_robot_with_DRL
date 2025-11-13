@@ -38,7 +38,7 @@
         <geom type="mesh" name="MotorSupports geom" mesh="MotorSupportsMesh" rgba="1.0 1.0 1.0 1.0"  />
       </body>
       <body name="STM" pos="-0.13333551585674286 -1.7881393432617188e-07 5.587935447692871e-08" quat="0.4999997913837433 0.5000002384185791 -0.4999997615814209 0.5000001788139343">
-        <inertial mass="70"/>
+        <inertial mass="0.07"/>
         <geom type="mesh" name="STM geom" mesh="STMMesh" rgba="1.0 1.0 1.0 1.0"  />
       </body>
       
@@ -81,7 +81,7 @@
     <!--  Indices 0, 1, 2-->
     <accelerometer noise="0.04" site="FRAME" name="accelerometer"/> <!-- 0.04 m/s^2 -->
     <!-- Indices 3, 4, 5 -->
-    <gyro noise="0.05" site="FRAME" name="gyroscope"/> <!-- 0.05 rad/s -->
+    <gyro noise="0.00175" site="FRAME" name="gyroscope"/> <!-- 0.05 °/s -> 0.00175 rad/s -->
     <!-- Indices 6, 7 -->
     <jointpos name="left_wheel_pos" joint="left_wheel_joint"/>
     <jointpos name="right_wheel_pos" joint="right_wheel_joint"/>
