@@ -26,9 +26,6 @@ class RewardWrapper(gym.Wrapper):
         """
         obs, reward, terminated, truncated, info = self.env.step(action)
 
-        torque_penalty = 0.01 * np.sum(np.square(action))
-        reward -= torque_penalty
-
         if not terminated and not truncated:
             reward += 1.0
         
@@ -57,7 +54,6 @@ class RewardCalculator:
                  alpha_yaw_displacement_penalty=0.3, 
                  alpha_pos_displacement_penalty=0.005,
                  alpha_linear_velocity_penalty=0.0001, 
-                 alpha_torque_penalty=0.025, 
                  weight_fall_penalty=100.0,
                  
                  alpha_yaw_magnitude_penalty=0.3,
@@ -65,13 +61,11 @@ class RewardCalculator:
                  yaw_settle_thresh=0.08,
                  lin_settle_thresh=0.03,
                  yaw_disp_settle_thresh=0.01,
-                 torque_persist_penalty_scale=0.02,
                  ang_vel_settle_thresh=0.12
                  ):
         self.alpha_yaw_displacement_penalty = alpha_yaw_displacement_penalty
         self.alpha_pos_displacement_penalty = alpha_pos_displacement_penalty
         self.alpha_linear_velocity_penalty = alpha_linear_velocity_penalty
-        self.alpha_torque_penalty = alpha_torque_penalty
         self.weight_fall_penalty = weight_fall_penalty
 
         self.alpha_yaw_magnitude_penalty = alpha_yaw_magnitude_penalty
@@ -80,7 +74,6 @@ class RewardCalculator:
         self.lin_settle_thresh = lin_settle_thresh
         self.yaw_disp_settle_thresh = yaw_disp_settle_thresh
         self.ang_vel_settle_thresh = ang_vel_settle_thresh
-        self.torque_persist_penalty_scale = torque_persist_penalty_scale
         self.alpha_pitch_penalty = 5.0
         self.alpha_velocity_penalty = 2.0
         self.alpha_position_penalty = 1.0
@@ -154,33 +147,6 @@ class RewardCalculator:
         self.stable_counter = 0
         self.bad_motion_counter = 0
         self.good_behavior_counter = 0
-
-    def _check_episode_end(self, env, yaw_displacement, pos_penalty, linear_penalty, yaw_magnitude_penalty, reward): 
-        if env._is_truncated():
-            reward -= (self.weight_fall_penalty + 10 * yaw_displacement)
-        elif env._is_terminated():
-            terminal_bonus = 500.0 # * pos_penalty * linear_penalty * yaw_magnitude_penalty
-            reward += terminal_bonus # - 3 * (self.positive_sign + self.negative_sign)
-        return reward
-
-    def _check_torque_persistence(self, env, yaw_displacement_penalty, pos_penalty, linear_penalty, yaw_magnitude_penalty):
-        if env.torque_l * env.torque_r > 0:
-            if np.sign(env.torque_l) > 0:
-                self.positive_sign += 1.0
-                self.negative_sign = 0
-            else:
-                self.negative_sign += 1.0
-                self.positive_sign = 0
-        else:
-            self.positive_sign = 0
-            self.negative_sign = 0
-        persistence = min(self.negative_sign + self.positive_sign, 50)
-        persistence_penalty = self.torque_persist_penalty_scale * persistence
-
-        reward = (yaw_displacement_penalty * yaw_magnitude_penalty) * linear_penalty * pos_penalty
-        reward -= persistence_penalty
-        
-        return reward
 
     def _kernel(self, x: float, alpha: float) -> float:
         """
