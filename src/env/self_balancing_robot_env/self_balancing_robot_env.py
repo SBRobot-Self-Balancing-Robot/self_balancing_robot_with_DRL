@@ -41,17 +41,6 @@ class SelfBalancingRobotEnv(gym.Env):
         # Encoder resolution:
         self.encoder_resolution = (2 * np.pi)/8192 # Minimum angular change detectable by the wheel encoders [radians]
 
-        # DA RIVEDERE:
-        # Action space: speed control
-        self.action_limit = 2.5  # Maximum absolute torque that can be applied to the wheels [N·m]
-        self.action_space = gym.spaces.Box(low=np.array([-self.action_limit, -self.action_limit]), high=np.array([self.action_limit, self.action_limit]), dtype=np.float64)
-        self.max_speed = 8.775 # Maximum wheel speed [rad/s] (84 RPM)
-        
-        # Motor control attributes
-        self.int_error = 0.0 # Integral error for speed control
-        self.kp_speed = 0.4 # Proportional gain for speed control
-        self.ki_speed = 0.1 # Integral gain for speed control
-        
         # Initialize the environment attributes
         self.weight_fall_penalty = 100.0 # Penalty for falling
         self.max_pitch = max_pitch # Maximum pitch angle before truncation
@@ -62,47 +51,7 @@ class SelfBalancingRobotEnv(gym.Env):
         self.angular_velocity = np.zeros(3) # Angular velocity of the robot [angular_velocity_x, angular_velocity_y, angular_velocity_z]
         self.wheels_position = np.zeros(2) # Angular position of the wheels [wheel_left_position, wheel_right_position]
 
-    def _torque_caracteristic(self, speed: float) -> float:
-        """
-        Compute the torque characteristic based on wheel speed.
-        
-        Args:
-            speed (float): The speed of the wheel.
-            
-        Returns:
-            float: The computed torque characteristic.
-        """
-        if abs(speed) < 15.7:
-            return -0.015 * speed + 2.5
-        elif abs(speed) >= 15.7 and abs(speed) < 21.98:
-            return -0.05 * speed + 3
-        elif abs(speed) >= 21.98 and abs(speed) < 25.12:
-            return -0.167 * speed + 5.5
-        elif abs(speed) >= 25.12 and abs(speed) < 31.42:
-            return -0.064 * speed + 3.2
-        elif abs(speed) >= 31.42 and abs(speed) < 34.54:
-            return -0.2 * speed + 7.1
-        else:
-            return -0.05 * speed + 2.3
-
-    def _compute_max_torque(self) -> T.List[float]:
-        """
-        Compute the maximum torque that can be applied to the wheels.
-        
-        Returns:
-            T.List[float]: The maximum torque values for the left and right wheels.
-        """
-        # Get the current real wheel speeds
-        left_speed = self.data.qvel[self.model.joint_name2id("left_wheel_joint")]
-        right_speed = self.data.qvel[self.model.joint_name2id("right_wheel_joint")]
-
-        # Compute the maximum torque based on wheel speeds
-        left_torque = self._torque_caracteristic(left_speed)
-        right_torque = self._torque_caracteristic(right_speed)
-
-        return [left_torque, right_torque]
-    
-    def step(self, action: T.Tuple[float, float]) -> T.Tuple[np.ndarray, float, bool, bool, dict]:
+    def step(self, action: T.Tuple[float, float]) -> T.Tuple[np.ndarray, float, bool, bool, dict]: 
         """
         Perform a step in the environment.
         
@@ -118,20 +67,11 @@ class SelfBalancingRobotEnv(gym.Env):
                 - truncated (bool): Whether the episode has been truncated.
                 - info (dict): Additional information about the environment.
         """
-        # Apply the desired torque to the wheels within the action limits
-        obs = self._get_obs()
-        max_torques = self._compute_max_torque()
-
-        # PI controller for speed control
-        speed_error = action - np.array([self.right_wheel_velocity, self.left_wheel_velocity])
-        self.int_error += speed_error * self.time_step
-        torque = self.kp_speed * speed_error + self.ki_speed * self.int_error
-    
-        clipped_action = np.clip(torque, [-max_torques[0], -max_torques[1]], [max_torques[0], max_torques[1]])
-        self.data.ctrl[:] = clipped_action # Apply action (torque to the wheels)
+        self.data.ctrl[:] = action
         
         for _ in range(self.frame_skip):
             mujoco.mj_step(self.model, self.data)  # Step the simulation
+        obs = self._get_obs()
         terminated = self._is_terminated()
         truncated = self._is_truncated()
         
