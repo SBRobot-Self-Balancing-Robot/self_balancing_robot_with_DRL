@@ -11,7 +11,13 @@ from mujoco import MjModel, MjData
 from mujoco.viewer import launch_passive
 from scipy.spatial.transform import Rotation as R
 
-
+FS_ACCEL = 16384.0            # LSB/g
+FSR_ACCEL = 2                 # Full scale range in g
+FS_GYRO = 131.0              # LSB/(°/s)
+FSR_GYRO = 250.0             # Full scale range in °/s
+DEG2RAD = (np.pi)/180
+RAD2DEG = 180/(np.pi)
+g = 9.81
 class SelfBalancingRobotEnv(gym.Env):
     
     def __init__(self, environment_path: str = "./models/scene.xml", max_time: float = 10.0, max_pitch: float = 0.8, frame_skip: int = 5):
@@ -37,13 +43,28 @@ class SelfBalancingRobotEnv(gym.Env):
         self.time_step = self.model.opt.timestep * self.frame_skip # Effective time step of the environment
 
         # Observation space: pitch, wheel velocities
-        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(3,), dtype=np.float64)
-        # Encoder resolution:
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(5,), dtype=np.float64)
+        # Action space
+        # Get the action limit from the model actuators
+        ctrl_ranges = self.model.actuator_ctrlrange
+
+        # Build Gym Box from these ranges
+        self.low  = ctrl_ranges[:, 0]
+        self.high = ctrl_ranges[:, 1]
+
+        self.action_space = gym.spaces.Box(
+            low=self.low,
+            high=self.high,
+            dtype=np.float32
+        )
+        # Sensor parameters:
+        self.accel_calib_scale = 0.0 # Accelerometer calibration scale factor
         self.encoder_resolution = (2 * np.pi)/8192 # Minimum angular change detectable by the wheel encoders [radians]
 
         # Initialize the environment attributes
         self.weight_fall_penalty = 100.0 # Penalty for falling
         self.max_pitch = max_pitch # Maximum pitch angle before truncation
+        self.speed_setpoints = [0.0, 0.0] # Desired speed setpoints
         
         # Initialize observation values
         self.roll, self.pitch, self.yaw = 0.0, 0.0, 0.0 # Orientation angles of the robot [roll, pitch, yaw]
@@ -114,6 +135,36 @@ class SelfBalancingRobotEnv(gym.Env):
             raise RuntimeError("Viewer is not running. Please reset the environment or start the viewer.")
 
 
+    def _dirty_accel(self, accel_data: np.ndarray) -> np.ndarray:
+        """
+        Simulate noise in the accelerometer data.
+        
+        Args:
+            accel_data (np.ndarray): The raw accelerometer data.
+        """
+        
+        # Full scale conversion
+        accel_data = np.clip(accel_data / g, -FSR_ACCEL, FSR_ACCEL)
+
+        # Turn g to raw data
+        accel_raw = accel_data * FS_ACCEL
+
+        # Add noise
+        # Initial Calibration Tolerance ±3%
+        accel_raw *= self.accel_calib_scale
+
+        # Non-linearity ±0.5%
+        accel_raw += 0.005 * (accel_raw ** 2)
+
+        # Cross-axis sensitivity ±2%
+        cross = np.eye(3) + np.random.uniform(-0.02, 0.02, size=(3,3))
+        accel_raw = cross @ accel_raw
+
+        # Turn raw data back to g
+        accel_data_noisy = accel_raw / FS_ACCEL * g
+
+        return accel_data_noisy
+
     def _get_body_linear_acceleration(self) -> np.ndarray:
         """
         Get the linear accelerations of the robot's body.
@@ -122,13 +173,15 @@ class SelfBalancingRobotEnv(gym.Env):
             np.ndarray: The linear accelerations of the robot's body in the order [acceleration_x, acceleration_y, acceleration_z].
         """
         # Index of the gyroscope sensor
-        accel_id = self.model.sensor_name2id("accelerometer")
+        accel_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, "accelerometer")
 
         # Address of the gyroscope sensor data
         accel_adr = self.model.sensor_adr[accel_id]
 
-        return self.data.sensordata[accel_adr : accel_adr + 3]
+        # Get the accelerometer data
+        accel_data = self._dirty_accel(self.data.sensordata[accel_adr : accel_adr + 3])
 
+        return accel_data
 
     def _dirty_gyro(self, gyro_data: np.ndarray) -> np.ndarray:
         """
@@ -137,22 +190,17 @@ class SelfBalancingRobotEnv(gym.Env):
         Args:
             gyro_data (np.ndarray): The raw gyroscope data.
         """
-        FS = 131.0              # LSB/(°/s)
-        DEG2RAD = np.pi/180
-        RAD2DEG = 180/np.pi
-        FSR = 250.0             # Full scale range in °/s
-
         # Full scale conversion
-        gyro_data = np.clip(gyro_data * RAD2DEG, -FSR, FSR)
+        gyro_data = np.clip(gyro_data * RAD2DEG, -FSR_GYRO, FSR_GYRO)
 
-        # Turn rad/s to raw data
-        gyro_raw = gyro_data * FS
+        # Turn °/s to raw data
+        gyro_raw = gyro_data * FS_GYRO
 
         # Add noise
         # Sensitivity Scale Factor Tolerance ±3%
         gyro_raw *= (1 + np.random.uniform(-0.03, 0.03, size=3))
 
-        # Non-linearity ±2%
+        # Non-linearity ±0.2%
         gyro_raw += 0.002 * (gyro_raw ** 2)
 
         # Cross-axis sensitivity ±2%
@@ -160,7 +208,7 @@ class SelfBalancingRobotEnv(gym.Env):
         gyro_raw = cross @ gyro_raw
 
         # Turn raw data back to rad/s
-        gyro_data_noisy = gyro_raw / FS * DEG2RAD
+        gyro_data_noisy = gyro_raw / FS_GYRO * DEG2RAD 
 
         return gyro_data_noisy
 
@@ -172,7 +220,7 @@ class SelfBalancingRobotEnv(gym.Env):
             np.ndarray: The angular velocity of the robot in the order [angular_velocity_x, angular_velocity_y, angular_velocity_z].
         """
         # Index of the gyroscope sensor
-        gyro_id = self.model.sensor_name2id("gyroscope")
+        gyro_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, "gyroscope")
 
         # Address of the gyroscope sensor data
         gyro_adr = self.model.sensor_adr[gyro_id]
@@ -189,12 +237,9 @@ class SelfBalancingRobotEnv(gym.Env):
         Returns:
             T.Tuple[float, float, float]: The roll, pitch, and yaw angles of the robot's body.
         """
-        self.linear_acceleration = self._get_body_linear_acceleration() # [accel_x, accel_y, accel_z]
-        self.angular_velocity = self._get_robot_angular_velocity() # [gyro_x, gyro_y, gyro_z]
-
         # Complementary filter to estimate pitch angle
-        self.pitch = 0.996 * (self.pitch + self.angular_velocity[1] * self.time_step) - 0.004 * np.arctan2(self.linear_acceleration[0], self.linear_acceleration[2]) * 180.0 / np.pi
-        self.roll = 0.996 * (self.roll + self.angular_velocity[0] * self.time_step) - 0.004 * np.arctan2(self.linear_acceleration[1], self.linear_acceleration[2]) * 180.0 / np.pi
+        self.pitch = 0.996 * (self.pitch + self.angular_velocity[1] * self.time_step) - 0.004 * np.arctan2(self.linear_acceleration[0], self.linear_acceleration[2])
+        self.roll = 0.996 * (self.roll + self.angular_velocity[0] * self.time_step) - 0.004 * np.arctan2(self.linear_acceleration[1], self.linear_acceleration[2])
         self.yaw += self.angular_velocity[2] * self.time_step
         
         return self.pitch, self.roll, self.yaw
@@ -207,8 +252,8 @@ class SelfBalancingRobotEnv(gym.Env):
             T.Tuple[float, float]: The angular velocities of the left and right wheels.
         """
         # Index of the wheel position sensors
-        left_pos_id = self.model.sensor_name2id("left_wheel_pos")
-        right_pos_id = self.model.sensor_name2id("right_wheel_pos")
+        left_pos_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, "left_wheel_pos")
+        right_pos_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, "right_wheel_pos")
 
         # Address of the wheel position sensor data
         left_pos_adr = self.model.sensor_adr[left_pos_id]
@@ -239,13 +284,31 @@ class SelfBalancingRobotEnv(gym.Env):
             Ho mantenuto l'output di 7 elementi, che ora include:
             [pitch, roll, yaw, linear_acceleration_x, linear_acceleration_y, angular_velocity_x, angular_velocity_y]
         """
+        self.linear_acceleration = self._get_body_linear_acceleration()
+        self.angular_velocity = self._get_robot_angular_velocity()
         self.pitch, self.roll, self.yaw = self._get_body_orientation_angles()
         self.right_wheel_velocity, self.left_wheel_velocity = self._get_wheels_angular_velocity()
+
+        right_wheel_setpoint_error = self.speed_setpoints[1] - self.right_wheel_velocity
+        left_wheel_setpoint_error = self.speed_setpoints[0] - self.left_wheel_velocity
         
+        # Data normalization
+        pitch = self.pitch / (np.pi/2)
+        right_wheel_velocity = self.right_wheel_velocity / self.high
+        left_wheel_velocity = self.left_wheel_velocity / self.high
+        right_wheel_setpoint_error = right_wheel_setpoint_error / self.high
+        left_wheel_setpoint_error = left_wheel_setpoint_error / self.high
+        
+        w_y = self.angular_velocity[1] / (FSR_GYRO * DEG2RAD)
+        a_x = self.linear_acceleration[0] / (FSR_ACCEL * g)
+        a_z = self.linear_acceleration[2] / (FSR_ACCEL * g)
+
         return np.array([
-            self.pitch,                    
-            self.right_wheel_velocity,
-            self.left_wheel_velocity         
+            pitch,                    
+            right_wheel_velocity,
+            left_wheel_velocity,
+            right_wheel_setpoint_error,
+            left_wheel_setpoint_error       
         ], dtype=np.float64)
     
 
@@ -275,6 +338,9 @@ class SelfBalancingRobotEnv(gym.Env):
 
 
     def _initialize_random_state(self):
+        # Initialize accelerometer initial calibration scale
+        self.accel_calib_scale = 1.0 + np.random.uniform(-0.03, 0.03, size=3)
+
         # Reset position and velocity
         self.data.qpos[:3] = [np.random.uniform(-0.5, 0.5), np.random.uniform(-0.5, 0.5), 0.25]  # Initial position (x, y, z)
         self.data.qvel[:] = 0.0  # Initial speed
@@ -289,6 +355,8 @@ class SelfBalancingRobotEnv(gym.Env):
             self.yaw  # Yaw
         ]
 
+        # Create a function to give a random direction to follow (evaluate also the velocity)
+        
         # Euler → Quaternion [x, y, z, w]
         quat_xyzw = R.from_euler('xyz', euler).as_quat()
         self.data.qpos[3:7] = [quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]]

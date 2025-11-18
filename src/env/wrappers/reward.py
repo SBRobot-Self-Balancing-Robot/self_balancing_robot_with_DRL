@@ -27,9 +27,9 @@ class RewardWrapper(gym.Wrapper):
         obs, reward, terminated, truncated, info = self.env.step(action)
 
         if not terminated and not truncated:
-            reward += 1.0
+            reward += 1.0 # type: ignore
         
-        reward += self.reward_calculator.compute_reward(self.env)
+        reward += self.reward_calculator.compute_reward(self.env) # type: ignore
 
         return obs, reward, terminated, truncated, info
 
@@ -87,43 +87,63 @@ class RewardCalculator:
 
     def compute_reward(self, env) -> float:
         """
-        Compute the reward for the current step, focused on self-balancing and staying still.
+        Compute the reward for the current step using the current env API.
 
-        Reward scenarios:
-            1) In equilibrium (yaw < threshold) but moving too fast: negative reward based on velocity intensity
-            2) In equilibrium (yaw < threshold) with acceptable velocity: positive reward based on yaw and velocity
-            3) Out of equilibrium: negative reward to encourage balancing
-
-        Args:
-            env: environment instance of SelfBalancingRobotEnv.
-
-        Returns:
-            float: computed reward value.
+        Usa:
+          - env.pitch
+          - env.angular_velocity (array)
+          - env.right_wheel_velocity, env.left_wheel_velocity
+          - env.data.qpos[:2] per la posizione (x,y)
         """
-        # Initialize tracking variables if needed
+        # Ensure counters exist
         if not hasattr(self, 'bad_motion_counter'):
             self.bad_motion_counter = 0
         if not hasattr(self, 'good_behavior_counter'):
             self.good_behavior_counter = 0
-        pitch = abs(env.pitch)
-        lin_vel_norm = np.linalg.norm(env.linear_vel[:2])  # solo x,y
-        pos_deviation = np.linalg.norm([env.x, env.y])
 
-        # Inclination penalties
-        pitch_penalty = self.alpha_pitch_penalty * pitch**2
+        # State from environment (fallback a 0 se non presente)
+        pitch = abs(getattr(env, "pitch", 0.0))
 
-        # Movement penalties
-        velocity_penalty = self.alpha_velocity_penalty * lin_vel_norm**2
-        position_penalty = self.alpha_position_penalty * pos_deviation**2
+        # Use wheel angular velocities as proxy della velocità lineare
+        right_w = getattr(env, "right_wheel_velocity", 0.0)
+        left_w = getattr(env, "left_wheel_velocity", 0.0)
+        wheel_vels = np.array([right_w, left_w], dtype=float)
+        lin_vel_norm = float(np.mean(np.abs(wheel_vels)))  # rad/s proxy per velocità
 
-        # Stability bonus
+        # Position deviation from origin using qpos if disponibile
+        if hasattr(env, "data") and hasattr(env.data, "qpos"):
+            pos = np.array(env.data.qpos[:2], dtype=float)
+        else:
+            pos = np.zeros(2, dtype=float)
+        pos_deviation = np.linalg.norm(pos)
+
+        # Penalità per inclinazione (pitch)
+        pitch_penalty = self.alpha_pitch_penalty * (pitch ** 2)
+
+        # Penalità movimento (velocità e posizione)
+        velocity_penalty = self.alpha_velocity_penalty * (lin_vel_norm ** 2)
+        position_penalty = self.alpha_position_penalty * (pos_deviation ** 2)
+
+        # Yaw rate penalty (usa angular_velocity z)
+        ang_vel = getattr(env, "angular_velocity", np.zeros(3, dtype=float))
+        yaw_rate = abs(ang_vel[2]) if len(ang_vel) > 2 else 0.0
+        yaw_penalty = self.alpha_yaw_penalty * (yaw_rate ** 2)
+
+        # Stability bonus basato sul contatore di buon comportamento
         stability_bonus = np.tanh(self.good_behavior_counter / 20.0)
 
-        # Yaw penalty
-        yaw_rate = abs(env.body_ang_vel[2])
-        yaw_penalty = self.alpha_yaw_penalty * yaw_rate**2
+        # Incremento o decremento dei contatori di comportamento
+        stable_condition = (
+            (pitch < self.yaw_settle_thresh) and
+            (lin_vel_norm < self.lin_settle_thresh) and
+            (np.linalg.norm(ang_vel) < self.ang_vel_settle_thresh)
+        )
+        if stable_condition:
+            self.good_behavior_counter += 1
+        else:
+            self.bad_motion_counter += 1
 
-        # Final reward
+        # Composizione reward
         reward = (
             + 1.0 * stability_bonus
             - pitch_penalty
@@ -131,11 +151,12 @@ class RewardCalculator:
             - position_penalty
             - yaw_penalty
         )
-        
-        if pitch < 0.05 and lin_vel_norm < 0.05 and np.linalg.norm(env.body_ang_vel) < 0.05:
-            reward += 2.0  # type: ignore
 
-        return reward
+        # Bonus addizionale se molto stabile e quasi fermo
+        if (pitch < 0.05) and (lin_vel_norm < 0.05) and (np.linalg.norm(ang_vel) < 0.05):
+            reward += 2.0
+
+        return float(reward)
 
     def reset(self):
         """

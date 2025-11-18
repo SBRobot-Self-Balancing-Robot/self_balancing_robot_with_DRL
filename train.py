@@ -98,7 +98,7 @@ def parse_arguments():
     parser.add_argument("--processes", type=int, default=50,
                        help="Number of parallel processes for training (default: 50)")
     parser.add_argument("--device", type=str, default="cpu",
-                       help="Device to use for training (default: cpu). Other options: cpu, cuda")
+                       help="Device to use for training (default: cpu). Other options: cpu, cuda, mps")
     
     return parser.parse_args()
 
