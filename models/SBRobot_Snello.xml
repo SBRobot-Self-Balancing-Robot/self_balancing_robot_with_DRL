@@ -89,8 +89,6 @@
   </actuator>
 
   <sensor>
-    <jointvel name="left_wheel_vel" joint="left_wheel_joint"/>
-    <jointvel name="right_wheel_vel" joint="right_wheel_joint"/>
     <!--  Indices 0, 1, 2-->
     <accelerometer noise="0.04" site="FRAME" name="accelerometer"/> <!-- 0.04 m/s^2 -->
     <!-- Indices 3, 4, 5 -->
@@ -98,6 +96,9 @@
     <!-- Indices 6, 7 -->
     <jointpos name="left_wheel_pos" joint="left_wheel_joint"/>
     <jointpos name="right_wheel_pos" joint="right_wheel_joint"/>
+    <!-- Indices 8, 9 -->
+    <jointvel name="left_wheel_vel" joint="left_wheel_joint"/>
+    <jointvel name="right_wheel_vel" joint="right_wheel_joint"/>
   </sensor>
 
 </mujoco>

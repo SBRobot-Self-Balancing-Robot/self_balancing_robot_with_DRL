@@ -13,11 +13,13 @@ from scipy.spatial.transform import Rotation as R
 
 FS_ACCEL = 16384.0            # LSB/g
 FSR_ACCEL = 2                 # Full scale range in g
-FS_GYRO = 131.0              # LSB/(°/s)
-FSR_GYRO = 250.0             # Full scale range in °/s
-DEG2RAD = (np.pi)/180
-RAD2DEG = 180/(np.pi)
-g = 9.81
+FS_GYRO = 131.0               # LSB/(°/s)
+FSR_GYRO = 250.0              # Full scale range in °/s
+
+DEG2RAD = (np.pi)/180         # Degrees to radians conversion factor
+RAD2DEG = 180/(np.pi)         # Radians to degrees conversion factor
+g = 9.81                      # Gravitational acceleration in m/s^2
+
 class SelfBalancingRobotEnv(gym.Env):
     
     def __init__(self, environment_path: str = "./models/scene.xml", max_time: float = 10.0, max_pitch: float = 0.8, frame_skip: int = 5):
