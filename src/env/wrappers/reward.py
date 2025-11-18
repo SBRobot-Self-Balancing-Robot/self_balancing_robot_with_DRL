@@ -1,6 +1,7 @@
 import typing as T
 import gymnasium as gym
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 from src.env.self_balancing_robot_env.self_balancing_robot_env import SelfBalancingRobotEnv
 
 class RewardWrapper(gym.Wrapper):
@@ -67,12 +68,12 @@ class RewardCalculator:
         # Extract necessary state variables from the environment
         # Pitch angle
         quaternion_angles = env.data.qpos[3:7]  # quaternion [w, x, y, z]
-        r = env.R.from_quat([quaternion_angles[1], quaternion_angles[2], quaternion_angles[3], quaternion_angles[0]]) # Rearrange to [x, y, z, w]
+        r = R.from_quat([quaternion_angles[1], quaternion_angles[2], quaternion_angles[3], quaternion_angles[0]]) # Rearrange to [x, y, z, w]
         roll, pitch, yaw = r.as_euler('xyz', degrees=False) # in radians
 
         # Wheel velocities
-        left_wheel_vel  = env.data.qvel[7]
-        right_wheel_vel = env.data.qvel[8]
+        left_wheel_vel  = env.wheels_real_velocity[0]
+        right_wheel_vel = env.wheels_real_velocity[1]
 
         # Setpoint speed error
         left_setpoint_speed_error  = left_wheel_vel  - env.speed_setpoints[0]

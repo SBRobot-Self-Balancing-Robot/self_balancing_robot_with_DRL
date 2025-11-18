@@ -51,18 +51,10 @@ def save_configuration(env, xml: str, model: str, filename: str, folder_name: st
             "max_pitch": unwrapped_env.max_pitch,
             "frame_skip": unwrapped_env.frame_skip,
             "alpha_values": {
-                "alpha_yaw_displacement_penalty": reward_calc.alpha_yaw_displacement_penalty if reward_calc is not None else None,
-                "alpha_pos_displacement_penalty": reward_calc.alpha_pos_displacement_penalty if reward_calc is not None else None,
-                "alpha_linear_velocity_penalty": reward_calc.alpha_linear_velocity_penalty if reward_calc is not None else None,
-                "alpha_torque_penalty": reward_calc.alpha_torque_penalty if reward_calc is not None else None,
-                "weight_fall_penalty": reward_calc.weight_fall_penalty if reward_calc is not None else None,
-                "alpha_yaw_magnitude_penalty": reward_calc.alpha_yaw_magnitude_penalty if reward_calc is not None else None,
-                "anchor_lock_steps": reward_calc.anchor_lock_steps if reward_calc is not None else None,
-                "yaw_settle_thresh": reward_calc.yaw_settle_thresh if reward_calc is not None else None,
-                "lin_settle_thresh": reward_calc.lin_settle_thresh if reward_calc is not None else None,
-                "yaw_disp_settle_thresh": reward_calc.yaw_disp_settle_thresh if reward_calc is not None else None,
-                "torque_persist_penalty_scale": reward_calc.torque_persist_penalty_scale if reward_calc is not None else None
+                "alpha_pitch_penalty": reward_calc.alpha_pitch_penalty if reward_calc is not None else None,
+                "alpha_setpoint_angle_penalty": reward_calc.alpha_setpoint_angle_penalty if reward_calc is not None else None
             }
+
         }
         json.dump(config, f, indent=4)
 

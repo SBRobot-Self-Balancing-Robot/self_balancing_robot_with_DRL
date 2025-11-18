@@ -16,13 +16,13 @@ FSR_ACCEL = 2                 # Full scale range in g
 FS_GYRO = 131.0               # LSB/(°/s)
 FSR_GYRO = 250.0              # Full scale range in °/s
 
+g = 9.81                      # Gravitational acceleration in m/s^2
 DEG2RAD = (np.pi)/180         # Degrees to radians conversion factor
 RAD2DEG = 180/(np.pi)         # Radians to degrees conversion factor
-g = 9.81                      # Gravitational acceleration in m/s^2
 
 class SelfBalancingRobotEnv(gym.Env):
     
-    def __init__(self, environment_path: str = "./models/scene.xml", max_time: float = 10.0, max_pitch: float = 0.8, frame_skip: int = 5):
+    def __init__(self, environment_path: str = "./models/scene.xml", max_time: float = 10.0, max_pitch: float = 0.4, frame_skip: int = 5):
         """
         Initialize the SelfBalancingRobot environment.
         
@@ -72,6 +72,7 @@ class SelfBalancingRobotEnv(gym.Env):
         self.linear_acceleration = np.zeros(3) # Linear acceleration of the robot [gyro_x, gyro_y, gyro_z]
         self.angular_velocity = np.zeros(3) # Angular velocity of the robot [angular_velocity_x, angular_velocity_y, angular_velocity_z]
         self.wheels_position = np.zeros(2) # Angular position of the wheels [wheel_left_position, wheel_right_position]
+        self.wheels_real_velocity = np.zeros(2) # Ideal angular velocity of the wheels [wheel_left_velocity, wheel_right_velocity]
 
     def step(self, action: T.Tuple[float, float]) -> T.Tuple[np.ndarray, float, bool, bool, dict]: 
         """
@@ -239,11 +240,11 @@ class SelfBalancingRobotEnv(gym.Env):
             T.Tuple[float, float, float]: The roll, pitch, and yaw angles of the robot's body.
         """
         # Complementary filter to estimate pitch angle
-        self.pitch = 0.996 * (self.pitch + self.angular_velocity[1] * self.time_step) - 0.004 * np.arctan2(self.linear_acceleration[0], self.linear_acceleration[2])
-        self.roll = 0.996 * (self.roll + self.angular_velocity[0] * self.time_step) - 0.004 * np.arctan2(self.linear_acceleration[1], self.linear_acceleration[2])
-        self.yaw += self.angular_velocity[2] * self.time_step
+        pitch = 0.996 * (self.pitch + self.angular_velocity[1] * self.time_step) - 0.004 * np.arctan2(self.linear_acceleration[0], self.linear_acceleration[2])
+        roll = 0.996 * (self.roll + self.angular_velocity[0] * self.time_step) - 0.004 * np.arctan2(self.linear_acceleration[1], self.linear_acceleration[2])
+        yaw =  self.yaw + self.angular_velocity[2] * self.time_step
         
-        return self.pitch, self.roll, self.yaw
+        return pitch, roll, yaw
     
     def _get_wheels_angular_velocity(self) -> T.Tuple[float, float]:
         """
@@ -275,6 +276,26 @@ class SelfBalancingRobotEnv(gym.Env):
         self.wheels_position[1] = right_pos 
         return left_speed, right_speed
 
+    def _get_wheels_real_angular_velocity(self) -> T.Tuple[float, float]:
+        """
+        Get the real angular velocities of the robot's wheels without quantization.
+        Returns:
+            T.Tuple[float, float]: The angular velocities of the left and right wheels.
+        """
+        # Index of the wheel position sensors
+        left_vel_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, "left_wheel_vel")
+        right_vel_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SENSOR, "right_wheel_vel")
+
+        # Address of the wheel position sensor data
+        left_vel_adr = self.model.sensor_adr[left_vel_id]
+        right_vel_adr = self.model.sensor_adr[right_vel_id]
+
+        # Get the wheel positions
+        left_vel = self.data.sensordata[left_vel_adr]
+        right_vel = self.data.sensordata[right_vel_adr]
+        
+        return left_vel, right_vel
+
     def _get_obs(self) -> np.ndarray:
         """
         Get the current observation of the environment.
@@ -285,27 +306,33 @@ class SelfBalancingRobotEnv(gym.Env):
             Ho mantenuto l'output di 7 elementi, che ora include:
             [pitch, roll, yaw, linear_acceleration_x, linear_acceleration_y, angular_velocity_x, angular_velocity_y]
         """
+        # Update wheel velocities for reward calculation
+        self.wheels_real_velocity = self._get_wheels_real_angular_velocity()
+
+        # Update sensor readings
         self.linear_acceleration = self._get_body_linear_acceleration()
         self.angular_velocity = self._get_robot_angular_velocity()
         self.pitch, self.roll, self.yaw = self._get_body_orientation_angles()
-        self.right_wheel_velocity, self.left_wheel_velocity = self._get_wheels_angular_velocity()
+        left_wheel_velocity, right_wheel_velocity = self._get_wheels_angular_velocity()
 
-        right_wheel_setpoint_error = self.speed_setpoints[1] - self.right_wheel_velocity
-        left_wheel_setpoint_error = self.speed_setpoints[0] - self.left_wheel_velocity
+        # Compute setpoint errors
+        left_wheel_setpoint_error = self.speed_setpoints[0] - left_wheel_velocity
+        right_wheel_setpoint_error = self.speed_setpoints[1] - right_wheel_velocity
         
         # Data normalization
         pitch = self.pitch / (np.pi/2)
-        right_wheel_velocity = self.right_wheel_velocity / self.high
-        left_wheel_velocity = self.left_wheel_velocity / self.high
-        right_wheel_setpoint_error = right_wheel_setpoint_error / self.high
-        left_wheel_setpoint_error = left_wheel_setpoint_error / self.high
+
+        right_wheel_velocity /= 8.775
+        left_wheel_velocity /= 8.775
+        right_wheel_setpoint_error /= 8.775
+        left_wheel_setpoint_error /= 8.775
         
         w_y = self.angular_velocity[1] / (FSR_GYRO * DEG2RAD)
         a_x = self.linear_acceleration[0] / (FSR_ACCEL * g)
         a_z = self.linear_acceleration[2] / (FSR_ACCEL * g)
 
-        return np.array([
-            pitch,                    
+        return np.array([  
+            pitch,              
             right_wheel_velocity,
             left_wheel_velocity,
             right_wheel_setpoint_error,
@@ -333,8 +360,11 @@ class SelfBalancingRobotEnv(gym.Env):
         Returns:
             bool: True if the episode is truncated, False otherwise.
         """
+        quat = self.data.qpos[3:7]  # quaternion [w, x, y, z]
+        r = R.from_quat([quat[1], quat[2], quat[3], quat[0]]) # Rearrange to [x, y, z, w]
+        _, pitch, _ = r.as_euler('xyz', degrees=False) # in radians
         return bool(
-            abs(self.pitch) > self.max_pitch
+            abs(pitch) > self.max_pitch
             )
 
 
@@ -347,13 +377,13 @@ class SelfBalancingRobotEnv(gym.Env):
         self.data.qvel[:] = 0.0  # Initial speed
 
         # Euler angles: Roll=0, Pitch=random, Yaw=random
-        self.pitch = np.random.uniform(-0.6, 0.6)
-        self.yaw = np.random.uniform(-np.pi, np.pi)
-        self.roll = 0.0
         euler = [
-            self.roll, # Roll
-            self.pitch, # Pitch
-            self.yaw  # Yaw
+            # 0.0, # Roll
+            # np.random.uniform(-0.4, 0.4), # Pitch
+            # np.random.uniform(-np.pi, np.pi) # Yaw
+            0.0, # Roll
+            np.random.uniform(-0.3, 0.3), # Pitch
+            np.random.uniform(-np.pi, np.pi) # Yaw
         ]
 
         # Create a function to give a random direction to follow (evaluate also the velocity)
