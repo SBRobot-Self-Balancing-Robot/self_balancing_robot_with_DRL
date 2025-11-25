@@ -30,9 +30,9 @@ class RewardWrapper(gym.Wrapper):
         reward += self.reward_calculator.compute_reward(self.env)
 
         if terminated and not truncated:
-            reward += 20  # Small positive reward for continuing
+            reward += 10 
         elif truncated:
-            reward -= 100 # Large negative reward for failure
+            reward -= 100
 
         return obs, reward, terminated, truncated, info
 
@@ -51,8 +51,9 @@ class RewardCalculator:
     """
     Class to compute the reward for the SelfBalancingRobotEnv.
     """
-    def __init__(self, alpha_pitch_penalty = 0.01, alpha_setpoint_angle_penalty = 50):
+    def __init__(self, alpha_pitch_penalty = 0.00015, alpha_pitch_speed_penality = 1, alpha_setpoint_angle_penalty = 50):
         self.alpha_pitch_penalty = alpha_pitch_penalty
+        self.alpha_pitch_speed_penality = alpha_pitch_speed_penality
         self.alpha_setpoint_angle_penalty = alpha_setpoint_angle_penalty
 
     def compute_reward(self, env) -> float:
@@ -66,14 +67,17 @@ class RewardCalculator:
           - env.data.qpos[:2] per la posizione (x,y)
         """
         # Extract necessary state variables from the environment
-        
+
+        # Robot orientation
         quaternion_angles = env.data.qpos[3:7]  # quaternion [w, x, y, z]
         r = R.from_quat([quaternion_angles[1], quaternion_angles[2], quaternion_angles[3], quaternion_angles[0]]) # Rearrange to [x, y, z, w]
         roll, pitch, yaw = r.as_euler('xyz', degrees=False) # in radians
-            
-        
-        
 
+        # Angular velocities
+        angular_velocity_x = env.angular_velocity[0]
+        angular_velocity_y = env.angular_velocity[1]
+        angular_velocity_z = env.angular_velocity[2]
+            
         # Wheel velocities
         left_wheel_vel  = env.wheels_real_velocity[0]
         right_wheel_vel = env.wheels_real_velocity[1]
@@ -84,10 +88,8 @@ class RewardCalculator:
 
 
         # Reward composition
-        reward = 0.9 * (
-            0.3 * self._kernel(pitch, self.alpha_pitch_penalty) +
-            0.35 * self._kernel(env.wheels_real_velocity[0], self.alpha_setpoint_angle_penalty) +
-            0.35 * self._kernel(env.wheels_real_velocity[1], self.alpha_setpoint_angle_penalty)
+        reward = (
+            self._kernel(pitch, self.alpha_pitch_penalty)
         )
 
         return float(reward)

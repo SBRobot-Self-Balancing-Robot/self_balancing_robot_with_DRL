@@ -21,7 +21,7 @@ DEG2RAD = (np.pi)/180         # Degrees to radians conversion factor
 RAD2DEG = 180/(np.pi)         # Radians to degrees conversion factor
 
 class SelfBalancingRobotEnv(gym.Env):
-    def __init__(self, environment_path: str = "./models/scene.xml", max_time: float = 10.0, max_pitch: float = 0.8, frame_skip: int = 5):
+    def __init__(self, environment_path: str = "./models/scene.xml", max_time: float = 10.0, max_pitch: float = 0.8, frame_skip: int = 10):
         """
         Initialize the SelfBalancingRobot environment.
         
@@ -72,6 +72,10 @@ class SelfBalancingRobotEnv(gym.Env):
         self.angular_velocity = np.zeros(3) # Angular velocity of the robot [angular_velocity_x, angular_velocity_y, angular_velocity_z]
         self.wheels_position = np.zeros(2) # Angular position of the wheels [wheel_left_position, wheel_right_position]
         self.wheels_real_velocity = np.zeros(2) # Ideal angular velocity of the wheels [wheel_left_velocity, wheel_right_velocity]
+
+        # Past states
+        self.prev_pitch = 0.0
+        self.prev_angular_velocity_y = 0.0
 
     def step(self, action: T.Tuple[float, float]) -> T.Tuple[np.ndarray, float, bool, bool, dict]: 
         """
@@ -258,14 +262,15 @@ class SelfBalancingRobotEnv(gym.Env):
         
         # --- 2. Normalize sensor data ---
         # Constants (make sure they are defined in the class or globally)
-        # Get the max wheel speed from the model
+        # Get the radius of the wheels from the model
         try:
             wheel_geom_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, "right_wheel_geom")
         except AttributeError:
         # Fallback per vecchie versioni (mujoco-py)
             wheel_geom_id = self.model.geom_name2id("right_wheel_geom")
         WHEEL_RADIUS = self.model.geom_size[wheel_geom_id][0]  # Assuming both wheels have the same max speed
-        # Get the radius of the wheels from the model
+        
+        # Get the max wheel speed from the model
         actuator_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, "left_motor")
         MAX_WHEEL_SPEED = self.model.actuator_ctrlrange[actuator_id][1]
         # Pitch: Normalized over 90 degrees (pi/2)
@@ -294,6 +299,8 @@ class SelfBalancingRobotEnv(gym.Env):
         # B. Target Steering (self.setpoint[1]) in rad/s
         # Normalize it with the same factor as the gyroscope (Z axis), to compare it with norm_w_z
         norm_target_ang = self.setpoint[1] / (FSR_GYRO * DEG2RAD)
+
+        
 
         # --- 4. Construct Observation Vector (Dimension 9) ---
         return np.array([  
@@ -345,7 +352,7 @@ class SelfBalancingRobotEnv(gym.Env):
         # Euler angles: Roll=0, Pitch=random, Yaw=random
         euler = [
             0.0, # Roll
-            np.random.uniform(-0.05, 0.05), # Pitch
+            0.0, # Pitch
             np.random.uniform(-np.pi, np.pi) # Yaw
         ]
 
