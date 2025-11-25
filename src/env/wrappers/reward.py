@@ -56,6 +56,8 @@ class RewardCalculator:
         self.alpha_pitch_speed_penalty = alpha_pitch_speed_penalty
         self.alpha_setpoint_angle_penalty = alpha_setpoint_angle_penalty
 
+        self.past_ctrl = np.array([0.0, 0.0])
+
     def compute_reward(self, env) -> float:
         """
         Compute the reward for the current step using the current env API.
@@ -86,14 +88,22 @@ class RewardCalculator:
         left_setpoint_speed_error  = left_wheel_vel  - env.setpoint[0]
         right_setpoint_speed_error = right_wheel_vel - env.setpoint[0]
 
+        # Ctrl variation
+        ctrl_variation = env.data.ctrl - self.past_ctrl
+
 
         # Reward composition
         reward = (
-            self._kernel(pitch, self.alpha_pitch_penalty) +
-            self._kernel(pitch, self.alpha_pitch_penalty * 100) +
-            - left_wheel_vel * 0.5 +
-            - right_wheel_vel * 0.5
+            (0.7 * self._kernel(pitch, self.alpha_pitch_penalty) +
+            0.3 * self._kernel(pitch, self.alpha_pitch_penalty * 100)) -
+            self._kernel(ctrl_variation[0], 0.2) *
+            self._kernel(ctrl_variation[1], 0.2)            
+            # - np.linalg.norm(env.data.ctrl) * 0.1 
+            #- left_wheel_vel * 0.5 +
+            #- right_wheel_vel * 0.5
         )
+
+        self.past_ctrl = env.data.ctrl.copy()
 
         return float(reward)
 
