@@ -73,10 +73,6 @@ class SelfBalancingRobotEnv(gym.Env):
         self.wheels_position = np.zeros(2) # Angular position of the wheels [wheel_left_position, wheel_right_position]
         self.wheels_real_velocity = np.zeros(2) # Ideal angular velocity of the wheels [wheel_left_velocity, wheel_right_velocity]
 
-        # Past states
-        self.prev_pitch = 0.0
-        self.prev_angular_velocity_y = 0.0
-
     def step(self, action: T.Tuple[float, float]) -> T.Tuple[np.ndarray, float, bool, bool, dict]: 
         """
         Perform a step in the environment.
@@ -93,6 +89,7 @@ class SelfBalancingRobotEnv(gym.Env):
                 - truncated (bool): Whether the episode has been truncated.
                 - info (dict): Additional information about the environment.
         """
+        action = np.clip(action, self.low, self.high)
         self.data.ctrl[:] = action
         
         for _ in range(self.frame_skip):
@@ -304,15 +301,17 @@ class SelfBalancingRobotEnv(gym.Env):
 
         # --- 4. Construct Observation Vector (Dimension 9) ---
         return np.array([  
-            norm_pitch,           # 1. Balance State
-            norm_w_y,             # 2. Pitch Dynamics
-            norm_a_x,             # 3. Accel X
-            norm_a_z,             # 4. Accel Z
-            norm_wheel_vel_left,  # 5. Left Actuator State
-            norm_wheel_vel_right, # 6. Right Actuator State
-            norm_w_z,             # 7. Yaw Dynamics
-            norm_target_lin,      # 8. SETPOINT: Velocity
-            norm_target_ang       # 9. SETPOINT: Direction
+            norm_pitch,             # 1. Balance State
+            norm_w_y,               # 2. Pitch Dynamics
+            norm_a_x,               # 3. Accel X
+            norm_a_z,               # 4. Accel Z
+            norm_wheel_vel_left,    # 5. Left Actuator State
+            norm_wheel_vel_right,   # 6. Right Actuator State
+            norm_w_z,               # 7. Yaw Dynamics
+            self.data.ctrl[0],      # 8. Left Motor Command
+            self.data.ctrl[1],      # 9. Right Motor Command 
+#            norm_target_lin,      # 8. SETPOINT: Velocity
+#            norm_target_ang       # 9. SETPOINT: Direction
         ], dtype=np.float64)
 
 

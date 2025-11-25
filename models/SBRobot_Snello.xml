@@ -1,7 +1,6 @@
 <mujoco>
   <compiler angle="degree" meshdir="./mesh" texturedir="./textures"/>
-  <option gravity="0 0 -9.81" integrator="implicit" timestep="0.001" 
-          iterations="50" solver="Newton" cone="pyramidal"  />
+  <option gravity="0 0 -9.81" integrator="implicitfast" iterations="50" solver="Newton" />
 
   <worldbody>
     <body name="Chassis" pos="0.0018212049035355449 0.0 0.0" quat="1.0 0.0 0.0 0.0">
@@ -48,13 +47,13 @@
       <body name="WheelL" pos="-0.0017285948852077127 0.1490991711616516 -0.19225578010082245" quat="0.7071067094802856 0.70710688829422 0.0 0.0">
         <inertial mass="0.134" pos="0.0 0.0 0.0" diaginertia="0.00014 0.00014 0.00026"/>
         <joint name="left_wheel_joint" type="hinge" axis="0 0 1" damping="0.2" armature="5.3e-05"/>
-        <geom type="mesh" name="WheelL geom" mesh="WheelL" rgba="1.0 1.0 1.0 1.0"/>
+        <geom type="mesh" name="WheelL geom" mesh="WheelL" rgba="1.0 1.0 1.0 1.0" friction="2 0.005 0.0002"/>
       </body>
 
       <body name="WheelR" pos="-0.0017284463392570615 -0.14910069108009338 -0.192415252327919" quat="0.7071067094802856 0.70710688829422 0.0 0.0">
         <inertial mass="0.134" pos="0.0 0.0 0.0" diaginertia="0.00014 0.00014 0.00026"/>
         <joint name="right_wheel_joint" type="hinge" axis="0 0 1" damping="0.2" armature="5.3e-05"/>
-        <geom type="mesh" name="WheelR geom" mesh="WheelR" rgba="1.0 1.0 1.0 1.0"/>
+        <geom type="mesh" name="WheelR geom" mesh="WheelR" rgba="1.0 1.0 1.0 1.0" friction="2 0.005 0.0002"/>
       </body>
 
     </body>
@@ -80,14 +79,18 @@
   </asset>
 
   <actuator>
-    <motor name="left_motor" joint="left_wheel_joint"
-            gear = "1"
-            ctrllimited = "true"
-            ctrlrange = "-2.5 2.5" />
-    <motor name="right_motor" joint="right_wheel_joint"
-            gear = "1"
-            ctrllimited = "true"
-            ctrlrange = "-2.5 2.5" />
+    <velocity name="left_motor" joint="left_wheel_joint"
+              ctrlrange = "-8.775 8.775"
+              forcerange = "-2.5 2.5"
+              kv = "20"
+              ctrllimited = "true"
+              forcelimited = "true"/>
+    <velocity name="right_motor" joint="right_wheel_joint"
+              ctrlrange = "-8.775 8.775"
+              forcerange = "-2.5 2.5"
+              kv = "20"
+              ctrllimited = "true"
+              forcelimited = "true"/>
   </actuator>
 
   <sensor>

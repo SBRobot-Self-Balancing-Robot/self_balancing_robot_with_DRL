@@ -2,13 +2,14 @@
 Training script for the Self-Balancing Robot environment using Stable Baselines3.
 """
 import os
+import csv
 import json
 import time
 import wandb
 import argparse
+import numpy as np
 import typing as T
 import gymnasium as gym
-import numpy as np
 from src.env.wrappers.reward import RewardWrapper
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3 import SAC, PPO, TD3, A2C, DDPG
@@ -89,6 +90,14 @@ def parse_arguments():
     
     parser.add_argument("--processes", type=int, default=50,
                        help="Number of parallel processes for training (default: 50)")
+    
+    # Add rollout size parameters
+    parser.add_argument("--n-steps", type=int, default=1024,
+                       help="Number of steps per environment before update (for PPO/A2C, default: 1024)")
+    
+    parser.add_argument("--buffer-size", type=int, default=100000,
+                       help="Replay buffer size (for SAC/TD3/DDPG, default: 100000)")
+    
     parser.add_argument("--device", type=str, default="cpu",
                        help="Device to use for training (default: cpu). Other options: cpu, cuda, mps")
     
@@ -157,18 +166,23 @@ if __name__ == "__main__":
     FOLDER_PREFIX = args.folder_prefix
     POLICIES_FOLDER = args.policies_folder
     DEVICE = args.device
+    N_STEPS = args.n_steps
+    BUFFER_SIZE = args.buffer_size
 
     timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
     if FILE_PREFIX is None:
         FILE_PREFIX = f"{MODEL.__name__}_{timestamp}"
     if FOLDER_PREFIX is None:
         FOLDER_PREFIX = FILE_PREFIX
+    
     wandb.init(
         project="self_balancing_robot",
         config={
             "model": args.model,
             "iterations": ITERATIONS,
             "processes": PROCESSES,
+            "n_steps": N_STEPS,
+            "buffer_size": BUFFER_SIZE,
             "xml_file": XML_FILE,
             "policies_folder": POLICIES_FOLDER,
             "file_prefix": FILE_PREFIX,
@@ -179,6 +193,9 @@ if __name__ == "__main__":
     print(f"  - Model: {MODEL.__name__}")
     print(f"  - Processes: {PROCESSES}")
     print(f"  - Iterations: {ITERATIONS}")
+    print(f"  - N Steps (PPO/A2C): {N_STEPS}")
+    print(f"  - Buffer Size (SAC/TD3/DDPG): {BUFFER_SIZE}")
+    print(f"  - Total batch size: {PROCESSES * N_STEPS}")
     print(f"  - Base file name: {FILE_PREFIX}")
     print(f"  - Policies folder: {POLICIES_FOLDER}")
     print(f"  - Model to load: {MODEL_FILE}")
@@ -192,7 +209,14 @@ if __name__ == "__main__":
         print("Model loaded successfully.")
     except FileNotFoundError:
         print("No pre-trained model found, starting training from scratch.")
-        model = MODEL("MlpPolicy", vec_env, device=DEVICE, verbose=1)
+        
+        # Create model with appropriate parameters based on algorithm type
+        if MODEL in [PPO, A2C]:
+            model = MODEL("MlpPolicy", vec_env, n_steps=N_STEPS, device=DEVICE, verbose=1)
+        elif MODEL in [SAC, TD3, DDPG]:
+            model = MODEL("MlpPolicy", vec_env, buffer_size=BUFFER_SIZE, device=DEVICE, verbose=1)
+        else:
+            model = MODEL("MlpPolicy", vec_env, device=DEVICE, verbose=1)
 
     model.learn(total_timesteps=ITERATIONS, progress_bar=True, callback=WandbCallback())
 
@@ -207,10 +231,13 @@ if __name__ == "__main__":
 
     env.reset()
     obs, _ = env.reset()
-    for _ in range(10000):
-        action, _ = model.predict(obs, deterministic=True)
-        obs, reward, terminated, truncated, _ = env.step(action)
-        env.render()
-        if terminated or truncated:
-            obs, _ = env.reset()
-            
+    with open(f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/test_results_{FILE_PREFIX}.csv", mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Pitch", "Y angular Velocity Y", "Accel X", "Accel Z", "Left Wheel Velocity", "Right Wheel Velocity", "Yaw angular Velocity Z", "Left Motor Command", "Right Motor Command"])
+        for _ in range(10000):
+            action, _ = model.predict(obs, deterministic=True)
+            obs, reward, terminated, truncated, _ = env.step(action)
+            env.render()
+            if terminated or truncated:
+                obs, _ = env.reset()
+            writer.writerow(obs.tolist())

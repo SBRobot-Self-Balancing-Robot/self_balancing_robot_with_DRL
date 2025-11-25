@@ -32,7 +32,7 @@ class RewardWrapper(gym.Wrapper):
         if terminated and not truncated:
             reward += 10 
         elif truncated:
-            reward -= 100
+            reward -= 200 * (1 - (self.env.data.time / self.env.max_time))
 
         return obs, reward, terminated, truncated, info
 
@@ -51,9 +51,9 @@ class RewardCalculator:
     """
     Class to compute the reward for the SelfBalancingRobotEnv.
     """
-    def __init__(self, alpha_pitch_penalty = 0.00015, alpha_pitch_speed_penality = 1, alpha_setpoint_angle_penalty = 50):
+    def __init__(self, alpha_pitch_penalty = 0.0003, alpha_pitch_speed_penalty = 1, alpha_setpoint_angle_penalty = 50):
         self.alpha_pitch_penalty = alpha_pitch_penalty
-        self.alpha_pitch_speed_penality = alpha_pitch_speed_penality
+        self.alpha_pitch_speed_penalty = alpha_pitch_speed_penalty
         self.alpha_setpoint_angle_penalty = alpha_setpoint_angle_penalty
 
     def compute_reward(self, env) -> float:
@@ -89,7 +89,10 @@ class RewardCalculator:
 
         # Reward composition
         reward = (
-            self._kernel(pitch, self.alpha_pitch_penalty)
+            self._kernel(pitch, self.alpha_pitch_penalty) +
+            self._kernel(pitch, self.alpha_pitch_penalty * 100) +
+            - left_wheel_vel * 0.5 +
+            - right_wheel_vel * 0.5
         )
 
         return float(reward)
