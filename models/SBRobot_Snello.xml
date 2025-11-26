@@ -1,5 +1,5 @@
 <mujoco>
-  <compiler angle="degree" meshdir="./mesh" texturedir="./textures"/>
+  <compiler angle="degree" meshdir="./mesh" texturedir="./textures" inertiafromgeom="true"/>
   <option integrator="implicitfast"/>
 
   <worldbody>
@@ -48,14 +48,14 @@
         <inertial mass="0.134" pos="0.0 0.0 0.0" diaginertia="0.00014 0.00014 0.00026"/>
         <joint name="left_wheel_joint" type="hinge" axis="0 0 1" damping="0.2" armature="5.3e-05"/>
         <geom type="mesh" name="WheelL_visual" mesh="WheelL" rgba="1 1 1 1" contype="0" conaffinity="0"/>
-        <geom type="cylinder" name="WheelL_collision" pos="0 0 0" size="0.0625 0.01" rgba="0.8 0.2 0.2 0.3" friction="0.8 0.05 0.002"/>
+        <geom type="cylinder" name="WheelL_collision" pos="0 0 0" size="0.0625 0.01" rgba="0.8 0.2 0.2 0.3" friction="0.8 0.05 0.002" contype="1" conaffinity="1"/>
       </body>
 
       <body name="WheelR" pos="-0.0017284463392570615 -0.14910069108009338 -0.192415252327919" quat="0.7071067094802856 0.70710688829422 0.0 0.0">
         <inertial mass="0.134" pos="0.0 0.0 0.0" diaginertia="0.00014 0.00014 0.00026"/>
         <joint name="right_wheel_joint" type="hinge" axis="0 0 1" damping="0.2" armature="5.3e-05"/>
         <geom type="mesh" name="WheelR_visual" mesh="WheelR" rgba="1 1 1 1" contype="0" conaffinity="0"/>
-        <geom type="cylinder" name="WheelR_collision" pos="0 0 0" size="0.0625 0.01" rgba="0.8 0.2 0.2 0.3" friction="1.0 0.075 0.002"/>
+        <geom type="cylinder" name="WheelR_collision" pos="0 0 0" size="0.0625 0.01" rgba="0.8 0.2 0.2 0.3" friction="1.0 0.075 0.002" contype="1" conaffinity="1"/>
       </body>
 
     </body>
@@ -81,8 +81,8 @@
   </asset>
 
   <actuator>
-    <velocity name="left_motor" joint="left_wheel_joint" ctrlrange="-8.775 8.775" forcerange="-2.5 2.5" kv="10" ctrllimited="true" forcelimited="true"/>
-    <velocity name="right_motor" joint="right_wheel_joint" ctrlrange="-8.775 8.775" forcerange="-2.5 2.5" kv="10" ctrllimited="true" forcelimited="true"/>
+    <motor name="left_motor" joint="left_wheel_joint" gear="1" ctrllimited="true" ctrlrange="-10 10"/>
+    <motor name="right_motor" joint="right_wheel_joint" gear="1" ctrllimited="true" ctrlrange="-10 10"/>
   </actuator>
 
   <sensor>
