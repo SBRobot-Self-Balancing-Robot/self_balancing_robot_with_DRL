@@ -51,7 +51,7 @@ class RewardCalculator:
     """
     Class to compute the reward for the SelfBalancingRobotEnv.
     """
-    def __init__(self, alpha_pitch_penalty = 0.0003, alpha_pitch_speed_penalty = 1, alpha_setpoint_angle_penalty = 50):
+    def __init__(self, alpha_pitch_penalty = 0.0001, alpha_pitch_speed_penalty = 1, alpha_setpoint_angle_penalty = 50):
         self.alpha_pitch_penalty = alpha_pitch_penalty
         self.alpha_pitch_speed_penalty = alpha_pitch_speed_penalty
         self.alpha_setpoint_angle_penalty = alpha_setpoint_angle_penalty
@@ -94,10 +94,13 @@ class RewardCalculator:
 
         # Reward composition
         reward = (
-            abs(pitch) / (np.pi/2) * 
-            abs(angular_velocity_z) / (150 * np.pi / 180) *
-            abs(np.linalg.norm(ctrl_variation / 8.775)) * 
-            abs(np.linalg.norm(env.data.ctrl) / 8.775) 
+            self._kernel(pitch, self.alpha_pitch_penalty) *
+            self._kernel(angular_velocity_z, 0.0001) *
+            self._kernel(np.linalg.norm(env.data.ctrl), 0.001)
+            #abs(pitch) / (np.pi/2) * 
+            #abs(angular_velocity_z) / (150 * np.pi / 180) *
+            #abs(np.linalg.norm(ctrl_variation / 8.775)) * 
+            #abs(np.linalg.norm(env.data.ctrl) / 8.775) 
             #- left_wheel_vel * 0.5 +
             #- right_wheel_vel * 0.5
         ) * (1 + (env.data.time / env.max_time))

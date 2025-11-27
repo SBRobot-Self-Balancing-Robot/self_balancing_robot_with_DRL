@@ -400,7 +400,7 @@ class SelfBalancingRobotEnv(gym.Env):
         # Euler angles: Roll=0, Pitch=random, Yaw=random
         euler = [
             0.0, # Roll
-            0.0, # Pitch
+            np.random.uniform(-0.3, 0.3), # Pitch
             np.random.uniform(-np.pi, np.pi) # Yaw
         ]
         # Euler → Quaternion [x, y, z, w] (Scipy convention)
