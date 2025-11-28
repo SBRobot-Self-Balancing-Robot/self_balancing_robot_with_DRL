@@ -6,6 +6,8 @@ import csv
 import json
 import time
 import wandb
+import shutil
+import tarfile
 import argparse
 import numpy as np
 import typing as T
@@ -20,12 +22,12 @@ from stable_baselines3.common.callbacks import BaseCallback
 from src.env.self_balancing_robot_env.self_balancing_robot_env import SelfBalancingRobotEnv
 from src.env.wrappers.reward import RewardWrapper
 
-def save_configuration(env, xml: str, model: str, filename: str, folder_name: str, iterations: int, processes: int):
+def save_configuration(env, xml: str, model: str, folder_name: str, iterations: int, processes: int):
     # Save the configuration
     if folder_name is not None:
         path = f"./policies/{folder_name}"
     else:
-        path = f"./policies/{filename}"
+        path = f"./policies/{folder_name}"
     
     if not os.path.exists(path):
         # Create the configuration directory if it doesn't exist
@@ -41,19 +43,21 @@ def save_configuration(env, xml: str, model: str, filename: str, folder_name: st
     reward_calc = rw.reward_calculator if isinstance(rw, RewardWrapper) else None
 
     # Save the configuration to a file
-    with open(f"{path}/{filename}.json", 'w') as f:
+    with open(f"{path}/config.json", 'w') as f:
         config = {
             "scene": xml,
             "model": model,
             "iterations": iterations,
             "processes": processes,
-            "policy": filename,
+            "policy": "policy",
             "max_time": unwrapped_env.max_time,
             "max_pitch": unwrapped_env.max_pitch,
             "frame_skip": unwrapped_env.frame_skip,
             "alpha_values": {
                 "alpha_pitch_penalty": reward_calc.alpha_pitch_penalty if reward_calc is not None else None,
-                "alpha_setpoint_angle_penalty": reward_calc.alpha_setpoint_angle_penalty if reward_calc is not None else None
+                "alpha_yaw_speed_penalty": reward_calc.alpha_yaw_speed_penalty if reward_calc is not None else None,
+                "alpha_ctrl_variation_penalty": reward_calc.alpha_ctrl_variation_penalty if reward_calc is not None else None,
+                "alpha_x_vel_penalty": reward_calc.alpha_x_vel_penalty if reward_calc is not None else None
             }
 
         }
@@ -101,6 +105,12 @@ def parse_arguments():
     parser.add_argument("--device", type=str, default="cpu",
                        help="Device to use for training (default: cpu). Other options: cpu, cuda, mps")
     
+    parser.add_argument("--register-dataset", action="store_true",
+                       help="Register the dataset after training (default: False)", default=False)
+    
+    parser.add_argument("--test-steps", type=int, default=10_000,
+                       help="Number of test steps (default: 10000)")
+    
     return parser.parse_args()
 
 def make_env():
@@ -130,7 +140,14 @@ def _parse_model(model_name: str):
         return models[model_name]
     else:
         return models["SAC"]  # Default to SAC if the model is not recognized
-
+def compress_and_remove(folder_to_compress):
+    # Compress the folder
+    with tarfile.open(f"{folder_to_compress}.tar.gz", mode='w:gz') as tar:
+        tar.add(folder_to_compress, arcname=os.path.basename(folder_to_compress))
+    # Remove the uncompressed folder
+    shutil.rmtree(folder_to_compress)
+    print(f"Training saved to: {folder_to_compress}.tar.gz")
+    
 # Log training progress to wandb
 class WandbCallback(BaseCallback):
     def __init__(self, verbose=0):
@@ -168,6 +185,8 @@ if __name__ == "__main__":
     DEVICE = args.device
     N_STEPS = args.n_steps
     BUFFER_SIZE = args.buffer_size
+    REGISTER_DATASET = args.register_dataset
+    TEST_STEPS = args.test_steps
 
     timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
     if FILE_PREFIX is None:
@@ -220,24 +239,71 @@ if __name__ == "__main__":
 
     model.learn(total_timesteps=ITERATIONS, progress_bar=True, callback=WandbCallback())
 
-    model.save(f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/{FILE_PREFIX}")
-    print(f"Model saved to {POLICIES_FOLDER}/{FOLDER_PREFIX}/{FILE_PREFIX}")
+    model.save(f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/policy")
+    print(f"Model saved to {POLICIES_FOLDER}/{FOLDER_PREFIX}/policy.zip")
     # Test
     env = make_env()()
     save_configuration(
-        env=env, xml=XML_FILE, model=MODEL.__name__, filename=FILE_PREFIX,
+        env=env, xml=XML_FILE, model=MODEL.__name__,
         folder_name=FOLDER_PREFIX, iterations=ITERATIONS, processes=PROCESSES
     )
 
     env.reset()
     obs, _ = env.reset()
-    with open(f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/test_results_{FILE_PREFIX}.csv", mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(["Pitch", "Y angular Velocity Y", "Accel X", "Accel Z", "Left Wheel Velocity", "Right Wheel Velocity", "Yaw angular Velocity Z", "Left Motor Command", "Right Motor Command"])
-        for _ in range(10000):
+    # Save also the XML model file used for the environment
+    model_path = f"./models/SBRobot_Snello.xml"  
+    with open(f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/SBRobot_Snello.xml", 'w') as f:
+        with open(model_path, 'r') as original_xml:
+            f.write(original_xml.read())
+            
+    # Save the scene.xml file
+    scene_path = XML_FILE
+    with open(f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/scene.xml", 'w') as f:
+        with open(scene_path, 'r') as original_scene:
+            f.write(original_scene.read())
+            
+    # Save the mesh files
+    mesh_folder = "./models/mesh"
+    dest_mesh_folder = f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/mesh"
+    if not os.path.exists(dest_mesh_folder):
+        os.makedirs(dest_mesh_folder)
+    for mesh_file in os.listdir(mesh_folder):
+        with open(os.path.join(dest_mesh_folder, mesh_file), 'w') as f:
+            with open(os.path.join(mesh_folder, mesh_file), 'r') as original_mesh:
+                f.write(original_mesh.read())
+    
+    folder_to_compress = f"{POLICIES_FOLDER}/{FOLDER_PREFIX}"
+    
+    # Start testing
+    if REGISTER_DATASET:
+        with open(f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/dataset.csv", mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Pitch", "Y angular Velocity Y", "Accel X", "Accel Z", "Left Wheel Velocity", "Right Wheel Velocity", "Yaw angular Velocity Z", "Left Motor Command", "Right Motor Command"])
+            for _ in range(10):
+                action, _ = model.predict(obs, deterministic=True)
+                obs, reward, terminated, truncated, _ = env.step(action)
+                try:
+                    env.render()
+                except Exception as e:
+                                break
+                except KeyboardInterrupt:
+                    compress_and_remove(folder_to_compress)
+                    break
+                if terminated or truncated:
+                    obs, _ = env.reset()
+                writer.writerow(obs.tolist())
+    elif not REGISTER_DATASET:
+        for _ in range(TEST_STEPS):
             action, _ = model.predict(obs, deterministic=True)
             obs, reward, terminated, truncated, _ = env.step(action)
-            env.render()
+            try:
+                env.render()
+            except Exception as e:
+                break
+            except KeyboardInterrupt:
+                compress_and_remove(folder_to_compress)
+                break
             if terminated or truncated:
                 obs, _ = env.reset()
-            writer.writerow(obs.tolist())
+    
+    compress_and_remove(folder_to_compress)

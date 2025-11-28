@@ -45,7 +45,7 @@ class SelfBalancingRobotEnv(gym.Env):
         self.time_step = self.model.opt.timestep * self.frame_skip # Effective time step of the environment
 
         # Observation space: pitch, wheel velocities
-        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(11,), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(13,), dtype=np.float32)
         
         # Action space
         ctrl_ranges = self.model.actuator_ctrlrange
@@ -76,11 +76,15 @@ class SelfBalancingRobotEnv(gym.Env):
         self.angular_velocity = np.zeros(3) # Angular velocity of the robot [angular_velocity_x, angular_velocity_y, angular_velocity_z]
         self.wheels_position = np.zeros(2) # Angular position of the wheels [wheel_left_position, wheel_right_position]
         self.wheels_real_velocity = np.zeros(2) # Ideal angular velocity of the wheels [wheel_left_velocity, wheel_right_velocity]z
+        self.x_vel = 0.0 # Linear velocity in the x direction
+
+        # Offset angle at the beginning of the simulation
+        self.offset_angle = self._get_offset()
 
         self.past_pitch = 0.0
         self.past_wz = 0.0
-        self.past_wx = 0.0
         self.past_ctrl = np.array([0.0, 0.0])
+        self.past_x_vel = 0.0
 
     def step(self, action: T.Tuple[float, float]) -> T.Tuple[np.ndarray, float, bool, bool, dict]: 
         """
@@ -143,6 +147,27 @@ class SelfBalancingRobotEnv(gym.Env):
             time.sleep(self.model.opt.timestep * self.frame_skip)  # Sleep for the duration of the frame skip
         else:
             raise RuntimeError("Viewer is not running. Please reset the environment or start the viewer.")    
+
+    def _get_offset(self) -> float:
+        """
+        Get the initial offset angles of the robot's body in Euler angles (roll, pitch, yaw) 
+        wrt the ideal 0 position of the robot.
+        
+        Returns:
+            T.Tuple[float, float, float]: The roll, pitch, and yaw angles of the robot's body.
+        """
+        mujoco.mj_kinematics(self.model, self.data)
+        chassis_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "Chassis")
+        wheel_L_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "WheelL")
+        com_total = self.data.subtree_com[chassis_id]
+        pivot_pos = self.data.xpos[wheel_L_id] 
+        
+        dx = com_total[0] - pivot_pos[0]
+        dz = com_total[2] - pivot_pos[2]
+        
+        angle_rad = -np.arctan2(dx, dz)
+        
+        return angle_rad
 
     def _get_body_linear_acceleration(self) -> np.ndarray:
         """
@@ -266,6 +291,17 @@ class SelfBalancingRobotEnv(gym.Env):
         
         return left_vel, right_vel
 
+    def _get_linear_velocity(self) -> T.Tuple[float, float]:
+        """
+        Get the linear velocities of the robot in the x and y directions.
+        
+        Returns:
+            T.Tuple[float, float]: The linear velocities in the x and y directions.
+        """
+        x_vel, y_vel = self.data.qvel[0:2]
+        
+        return x_vel, y_vel
+
     def _get_obs(self) -> np.ndarray:
         """
         Get the current observation of the environment.
@@ -287,6 +323,7 @@ class SelfBalancingRobotEnv(gym.Env):
         self.linear_acceleration = self._get_body_linear_acceleration()
         self.angular_velocity = self._get_robot_angular_velocity()
         self.pitch, self.roll, self.yaw = self._get_body_orientation_angles()
+        self.x_vel, self.y_vel = self._get_linear_velocity()
         # quat = self.data.qpos[3:7]  # quaternion [w, x, y, z]
         # r = R.from_quat([quat[1], quat[2], quat[3], quat[0]]) # Rearrange to [x, y, z, w]
         # self.roll, self.pitch, self.yaw = r.as_euler('xyz', degrees=False) # in radians
@@ -320,6 +357,10 @@ class SelfBalancingRobotEnv(gym.Env):
         norm_wheel_vel_left = self.wheels_real_velocity[0] / MAX_WHEEL_SPEED
         norm_wheel_vel_right = self.wheels_real_velocity[1] / MAX_WHEEL_SPEED
 
+        # Linear Velocities: Normalized over maximum speed
+        norm_x_vel = self.x_vel / 0.6
+        norm_y_vel = self.y_vel / 0.6
+
         # --- 3. Normalize COMMANDS (TARGET) ---
         # Using self.setpoint = [vel, dir]
         
@@ -335,28 +376,35 @@ class SelfBalancingRobotEnv(gym.Env):
         # Normalize past values
         norm_past_pitch = self.past_pitch / (np.pi/2)
         norm_past_wz = self.past_wz / (FSR_GYRO * DEG2RAD)
-        norm_past_wx = self.past_wx / (FSR_GYRO * DEG2RAD)
+        norm_past_x_vel = self.past_x_vel / 0.6
 
         # --- 4. Construct Observation Vector ---
-        obsv  = np.array([  
+        obsv  = np.array([
+            # Pitch and related dynamics
             norm_pitch,             # 1. Balance State
             norm_past_pitch,        # 2. Past Balance State
             norm_w_y,               # 3. Pitch Dynamics
             norm_a_x,               # 4. Accel X
             norm_a_z,               # 5. Accel Z
+
+            # Yaw dynamics
             norm_w_z,               # 6. Yaw Dynamics
             norm_past_wz,           # 7. Past Yaw Dynamics
-            #norm_w_x,               # 8. Roll Dynamics
-            #norm_past_wx,           # 9. Past Roll Dynamics
-            self.data.ctrl[0],      # 10. Left Motor Command
-            self.data.ctrl[1],      # 11. Right Motor Command
-            self.past_ctrl[0],     # 12. Past Left Motor Command
-            self.past_ctrl[1],     # 13. Past Right Motor Command
+            
+            # Wheels dynamics
+            self.data.ctrl[0],      # 8. Left Motor Command
+            self.data.ctrl[1],      # 9. Right Motor Command
+            self.past_ctrl[0],      # 10. Past Left Motor Command
+            self.past_ctrl[1],      # 11. Past Right Motor Command
+
+            # Linear Velocity
+            norm_x_vel,             # 12. Linear Velocity
+            norm_past_x_vel,        # 13. Past Linear Velocity
         ], dtype=np.float32)
 
         self.past_pitch = self.pitch
         self.past_wz = self.angular_velocity[2]
-        self.past_wx = self.angular_velocity[0]
+        self.past_x_vel = self.x_vel
         self.past_ctrl = self.data.ctrl.copy()
 
         return obsv
@@ -382,8 +430,10 @@ class SelfBalancingRobotEnv(gym.Env):
         quat = self.data.qpos[3:7]  # quaternion [w, x, y, z]
         r = R.from_quat([quat[1], quat[2], quat[3], quat[0]]) # Rearrange to [x, y, z, w]
         _, pitch, _ = r.as_euler('xyz', degrees=False) # in radians
+        compensated_pitch = pitch - self.offset_angle
+        
         return bool(
-            abs(self.pitch) > self.max_pitch
+            abs(compensated_pitch) > self.max_pitch
             )
 
     def _initialize_random_state(self):
@@ -400,7 +450,7 @@ class SelfBalancingRobotEnv(gym.Env):
         # Euler angles: Roll=0, Pitch=random, Yaw=random
         euler = [
             0.0, # Roll
-            np.random.uniform(-0.3, 0.3), # Pitch
+            np.random.uniform(-0.05, 0.05), # Pitch
             np.random.uniform(-np.pi, np.pi) # Yaw
         ]
         # Euler → Quaternion [x, y, z, w] (Scipy convention)
@@ -410,7 +460,6 @@ class SelfBalancingRobotEnv(gym.Env):
 
         self.past_pitch = 0.0
         self.past_wz = 0.0
-        self.past_wx = 0.0
         
         self.Q = np.array([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]])
         

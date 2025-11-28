@@ -51,10 +51,14 @@ class RewardCalculator:
     """
     Class to compute the reward for the SelfBalancingRobotEnv.
     """
-    def __init__(self, alpha_pitch_penalty = 0.0001, alpha_pitch_speed_penalty = 1, alpha_setpoint_angle_penalty = 50):
+    def __init__(self, alpha_pitch_penalty = 0.01, 
+                 alpha_yaw_speed_penalty = 0.0001, 
+                 alpha_ctrl_variation_penalty = 0.1, 
+                 alpha_x_vel_penalty = 0.00001):
         self.alpha_pitch_penalty = alpha_pitch_penalty
-        self.alpha_pitch_speed_penalty = alpha_pitch_speed_penalty
-        self.alpha_setpoint_angle_penalty = alpha_setpoint_angle_penalty
+        self.alpha_yaw_speed_penalty = alpha_yaw_speed_penalty
+        self.alpha_ctrl_variation_penalty = alpha_ctrl_variation_penalty
+        self.alpha_x_vel_penalty = alpha_x_vel_penalty
 
         self.past_ctrl = np.array([0.0, 0.0])
 
@@ -76,27 +80,22 @@ class RewardCalculator:
         roll, pitch, yaw = r.as_euler('xyz', degrees=False) # in radians
 
         # Angular velocities
-        angular_velocity_x = env.angular_velocity[0]
-        angular_velocity_y = env.angular_velocity[1]
-        angular_velocity_z = env.angular_velocity[2]
-            
-        # Wheel velocities
-        left_wheel_vel  = env.wheels_real_velocity[0]
-        right_wheel_vel = env.wheels_real_velocity[1]
-
-        # Setpoint speed error
-        left_setpoint_speed_error  = left_wheel_vel  - env.setpoint[0]
-        right_setpoint_speed_error = right_wheel_vel - env.setpoint[0]
+        w_roll, w_pitch, w_yaw = env.angular_velocity  # in radians/sec
 
         # Ctrl variation
         ctrl_variation = env.data.ctrl - env.past_ctrl
 
+        # Linear velocities
+        x_vel = env.x_vel  # in m/s
+
 
         # Reward composition
         reward = (
-            self._kernel(pitch, self.alpha_pitch_penalty) *
-            self._kernel(angular_velocity_z, 0.0001) *
-            self._kernel(np.linalg.norm(env.data.ctrl), 0.001)
+            self._kernel(pitch, self.alpha_pitch_penalty) *                        # keep pitch small
+            self._kernel(w_yaw, self.alpha_yaw_speed_penalty) *                    # keep yaw rate small
+            self._kernel(env.data.ctrl[0], self.alpha_ctrl_variation_penalty) *    # keep control variations small
+            self._kernel(env.data.ctrl[1], self.alpha_ctrl_variation_penalty) *    # keep control variations small
+            self._kernel(x_vel, self.alpha_x_vel_penalty)                          # keep linear velocity small
             #abs(pitch) / (np.pi/2) * 
             #abs(angular_velocity_z) / (150 * np.pi / 180) *
             #abs(np.linalg.norm(ctrl_variation / 8.775)) * 
