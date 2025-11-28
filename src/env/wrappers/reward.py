@@ -65,48 +65,27 @@ class RewardCalculator:
     def compute_reward(self, env) -> float:
         """
         Compute the reward for the current step using the current env API.
-
-        Usa:
-          - env.pitch
-          - env.angular_velocity (array)
-          - env.right_wheel_velocity, env.left_wheel_velocity
-          - env.data.qpos[:2] per la posizione (x,y)
+        
+        Reward = 1.0 (alive bonus) - |x_vel| - 0.1 * |w_yaw|
         """
-        # Extract necessary state variables from the environment
-
-        # Robot orientation
-        quaternion_angles = env.data.qpos[3:7]  # quaternion [w, x, y, z]
-        r = R.from_quat([quaternion_angles[1], quaternion_angles[2], quaternion_angles[3], quaternion_angles[0]]) # Rearrange to [x, y, z, w]
-        roll, pitch, yaw = r.as_euler('xyz', degrees=False) # in radians
-
         # Angular velocities
         w_roll, w_pitch, w_yaw = env.angular_velocity  # in radians/sec
-
-        # Ctrl variation
-        ctrl_variation = env.data.ctrl - env.past_ctrl
 
         # Linear velocities
         x_vel = env.x_vel  # in m/s
 
+        # Position
+        x_pos = env.data.qpos[0]
 
-        # Reward composition
-        reward = (
-            self._kernel(pitch, self.alpha_pitch_penalty) *                        # keep pitch small
-            self._kernel(w_yaw, self.alpha_yaw_speed_penalty) *                    # keep yaw rate small
-            self._kernel(env.data.ctrl[0], self.alpha_ctrl_variation_penalty) *    # keep control variations small
-            self._kernel(env.data.ctrl[1], self.alpha_ctrl_variation_penalty) *    # keep control variations small
-            self._kernel(x_vel, self.alpha_x_vel_penalty)                          # keep linear velocity small
-            #abs(pitch) / (np.pi/2) * 
-            #abs(angular_velocity_z) / (150 * np.pi / 180) *
-            #abs(np.linalg.norm(ctrl_variation / 8.775)) * 
-            #abs(np.linalg.norm(env.data.ctrl) / 8.775) 
-            #- left_wheel_vel * 0.5 +
-            #- right_wheel_vel * 0.5
-        ) * (1 + (env.data.time / env.max_time))
+        # Improved reward: 
+        # - Alive bonus: 1.0
+        # - Velocity penalty: |x_vel| (stay still)
+        # - Yaw rate penalty: 0.1 * |w_yaw| (stay straight)
+        # - Position penalty: 0.1 * |x_pos| (prevent drift)
+        # - Pitch rate penalty: 0.05 * |w_pitch| (dampen oscillations)
+        reward = 1.0 - abs(x_vel) - 0.1 * abs(w_yaw) - 0.1 * abs(x_pos) - 0.05 * abs(w_pitch)
 
         return float(reward)
-
-        
 
     def _kernel(self, x: float, alpha: float) -> float:
         """

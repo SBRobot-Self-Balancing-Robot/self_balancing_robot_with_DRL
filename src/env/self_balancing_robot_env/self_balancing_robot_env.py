@@ -342,6 +342,7 @@ class SelfBalancingRobotEnv(gym.Env):
         actuator_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, "left_motor")
         MAX_WHEEL_SPEED = self.model.actuator_ctrlrange[actuator_id][1]
         # Pitch: Normalized over 90 degrees (pi/2)
+        compensated_pitch = self.pitch - self.offset_angle
         norm_pitch = self.pitch / (np.pi/2)
         
         # Angular Velocities (Gyro): Normalized over Full Scale Range (FSR)
