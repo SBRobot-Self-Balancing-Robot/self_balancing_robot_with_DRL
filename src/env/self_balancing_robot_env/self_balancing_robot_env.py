@@ -462,7 +462,7 @@ class SelfBalancingRobotEnv(gym.Env):
         self.past_wz = self.angular_velocity[2].copy()
         self.past_x_vel = self.x_vel.copy()
         self.past_ctrl = self.data.ctrl.copy()
-        self.past_wheels_velocity = self.wheels_velocity.copy()
+        self.past_wheels_velocity = (self.wheels_velocity[0], self.wheels_velocity[1])
 
         return obsv
 
