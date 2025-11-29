@@ -96,19 +96,25 @@
   </actuator>
 
   <sensor>
+    <!-- Real data for observation -->
     <!--  Indices 0, 1, 2-->
-    <accelerometer noise="0.02" site="FRAME" name="accelerometer"/> <!-- 0.04 m/s^2 -->
+    <accelerometer noise="0.04" site="FRAME" name="accelerometer"/> <!-- 0.04 m/s^2 -->
     
     <!-- Indices 3, 4, 5 -->
-    <gyro noise="0.03" site="FRAME" name="gyroscope"/> <!-- 0.05 °/s -> 0.00175 rad/s -->
+    <gyro noise="0.00175" site="FRAME" name="gyroscope"/> <!-- 0.05 °/s -> 0.00175 rad/s -->
     
     <!-- Indices 6, 7 -->
     <jointpos name="left_wheel_pos" joint="left_wheel_joint"/>
     <jointpos name="right_wheel_pos" joint="right_wheel_joint"/>
     
+    <!--  Ideal data for reward computation -->
     <!-- Indices 8, 9 -->
     <jointvel name="left_wheel_vel" joint="left_wheel_joint"/>
     <jointvel name="right_wheel_vel" joint="right_wheel_joint"/>
+    <!-- Indices 10, 11, 12 -->
+    <accelerometer site="FRAME" name="ideal_accelerometer"/>
+    <!-- Indices 13, 14, 15 -->
+    <gyroscope site="FRAME" name="ideal_gyroscope"/>
   </sensor>
 
 </mujoco>

@@ -69,7 +69,7 @@ class RewardCalculator:
         Reward = 1.0 (alive bonus) - |x_vel| - 0.1 * |w_yaw|
         """
         # Angular velocities
-        w_roll, w_pitch, w_yaw = env.angular_velocity  # in radians/sec
+        w_roll, w_pitch, w_yaw = env.real_angular_velocity  # in radians/sec
 
         # Linear velocities
         x_vel = env.x_vel  # in m/s
