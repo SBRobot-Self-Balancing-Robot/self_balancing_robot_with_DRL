@@ -10,3 +10,4 @@ wandb/latest-run
 *.txt
 *.TXT
 *.log
+.env
