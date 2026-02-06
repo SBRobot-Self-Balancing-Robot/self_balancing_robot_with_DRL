@@ -64,7 +64,7 @@ def save_configuration(env, xml: str, model: str, folder_name: str, iterations: 
                 "alpha_yaw_speed_penalty": reward_calc.alpha_yaw_speed_penalty if reward_calc is not None else None,
                 "alpha_ctrl_variation_penalty": reward_calc.alpha_ctrl_variation_penalty if reward_calc is not None else None,
                 "alpha_x_vel_penalty": reward_calc.alpha_x_vel_penalty if reward_calc is not None else None,
-                "alpha_yaw_equilibrium": reward_calc.alpha_yaw_equilibrium if reward_calc is not None else None,
+                "alpha_equilibrium": reward_calc.alpha_equilibrium if reward_calc is not None else None,
                 "alpha_linear_equilibrium": reward_calc.alpha_linear_equilibrium if reward_calc is not None else None
             }
 
@@ -360,6 +360,7 @@ if __name__ == "__main__":
         _run(TEST_STEPS)
 
     compress_and_remove(folder_to_compress, POLICY_SCP)
+
 
 def _run(TEST_STEPS):
     for _ in range(TEST_STEPS):
