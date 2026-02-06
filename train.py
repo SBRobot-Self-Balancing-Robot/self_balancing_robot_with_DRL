@@ -188,7 +188,7 @@ def send_to_remote(local_path):
         with SCPClient(ssh.get_transport()) as scp:
             scp.put(local_path, remote_path=os.getenv("SCP_DEST"))
             print(
-                f"Transfer completed to {os.getenv("REMOTE_HOST")}{os.getenv("SCP_DEST")}")
+                f"Transfer completed to {os.getenv("REMOTE_HOST")}:{os.getenv("SCP_DEST")}/{local_path}")
 
     except Exception as e:
         print(f"Error while sending to remote: {e}")
