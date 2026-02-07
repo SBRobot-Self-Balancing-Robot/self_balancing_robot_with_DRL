@@ -253,7 +253,6 @@ class SelfBalancingRobotEnv(gym.Env):
         left_id  = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, "left_motor")
         right_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, "right_motor")
 
-
         # varia kv del ±20%
         self.model.actuator_gainprm[left_id][0] = np.random.uniform(16, 24)
         self.model.actuator_gainprm[right_id][0] = np.random.uniform(16, 24)

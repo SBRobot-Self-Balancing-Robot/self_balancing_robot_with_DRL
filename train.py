@@ -1,8 +1,6 @@
 """
 Training script for the Self-Balancing Robot environment using Stable Baselines3.
 """
-from scp import SCPClient
-import paramiko
 import os
 import csv
 import json
@@ -10,21 +8,22 @@ import time
 import wandb
 import shutil
 import tarfile
-import argparse
 import numpy as np
 import typing as T
 import gymnasium as gym
-from dotenv import load_dotenv
+
+from src.utils.files import backup, compress_and_remove
+from src.utils.parser import parse_train_arguments, parse_model
+
+from src.env.robot import SelfBalancingRobotEnv
 from src.env.wrappers.reward import RewardWrapper
-from stable_baselines3.common.monitor import Monitor
-from stable_baselines3 import SAC, PPO, TD3, A2C, DDPG
-from stable_baselines3.common.vec_env import SubprocVecEnv
-from stable_baselines3.common.env_checker import check_env
-from stable_baselines3.common.callbacks import BaseCallback
 from src.env.wrappers.observations import ObservationWrapper
 
-from src.env.self_balancing_robot_env.self_balancing_robot_env import SelfBalancingRobotEnv
-from src.env.wrappers.reward import RewardWrapper
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3 import SAC, PPO, TD3, A2C, DDPG
+from stable_baselines3.common.env_checker import check_env
+from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.callbacks import BaseCallback
 
 
 def save_configuration(env, xml: str, model: str, folder_name: str, iterations: int, processes: int):
@@ -71,64 +70,6 @@ def save_configuration(env, xml: str, model: str, folder_name: str, iterations: 
         }
         json.dump(config, f, indent=4)
 
-
-def parse_arguments():
-    """
-    Command line argument parser for training the Self-Balancing Robot environment.
-    """
-    parser = argparse.ArgumentParser(
-        description="Training the self-balancing robot with Deep Reinforcement Learning"
-    )
-
-    parser.add_argument("--xml-file", type=str, default="./models/scene.xml",
-                        help="Path to the XML file defining the robot and environment (default: ./models/scene.xml)")
-
-    parser.add_argument("--model", type=str, default="PPO",
-                        help="Model to use for training (default: PPO). Other options: PPO, TD3, A2C, DDPG")
-
-    parser.add_argument("--policies-folder", type=str, default="./policies",
-                        help="Folder where models are saved/loaded (default: ./policies)")
-
-    parser.add_argument("--file-prefix", type=str, default=None,
-                        help="Base name for the saved files")
-
-    parser.add_argument("--folder-prefix", type=str, default=None,
-                        help="Base folder name for the saved files (default: None, uses timestamp)")
-
-    parser.add_argument("--policy", type=str, default=None,
-                        help="Name of the model file to load")
-
-    parser.add_argument("--iterations", type=int, default=1_000_000,
-                        help="Number of training iterations (default: 1000000)")
-
-    parser.add_argument("--processes", type=int, default=50,
-                        help="Number of parallel processes for training (default: 50)")
-
-    # Add rollout size parameters
-    parser.add_argument("--n-steps", type=int, default=1024,
-                        help="Number of steps per environment before update (for PPO/A2C, default: 1024)")
-
-    parser.add_argument("--buffer-size", type=int, default=100000,
-                        help="Replay buffer size (for SAC/TD3/DDPG, default: 100000)")
-
-    parser.add_argument("--device", type=str, default="cpu",
-                        help="Device to use for training (default: cpu). Other options: cpu, cuda, mps")
-
-    parser.add_argument("--register-dataset", action="store_true",
-                        help="Register the dataset after training (default: False)", default=False)
-
-    parser.add_argument("--test-steps", type=int, default=10_000,
-                        help="Number of test steps (default: 10000)")
-
-    parser.add_argument("--headless", action="store_true",
-                        help="Run the environment in headless mode (default: False)", default=False)
-
-    parser.add_argument("--policy-scp", action="store_true",
-                        help="Copy the policy to the remote server (default: False)", default=False)
-
-    return parser.parse_args()
-
-
 def make_env():
     """
     Creates an instance of the SelfBalancingRobotEnv environment wrapped with RewardWrapper.
@@ -141,60 +82,6 @@ def make_env():
         check_env(environment, warn=True)
         return environment
     return _init
-
-
-def _parse_model(model_name: str):
-    """
-    Parses the model name to return the corresponding Stable Baselines3 model class.
-    """
-    models = {
-        "SAC": SAC,
-        "PPO": PPO,
-        "TD3": TD3,
-        "A2C": A2C,
-        "DDPG": DDPG
-    }
-    if model_name in models:
-        return models[model_name]
-    else:
-        return models["SAC"]  # Default to SAC if the model is not recognized
-
-
-def compress_and_remove(folder_to_compress, POLICY_SCP):
-    # Compress the folder
-    with tarfile.open(f"{folder_to_compress}.tar.gz", mode='w:gz') as tar:
-        tar.add(folder_to_compress, arcname=os.path.basename(folder_to_compress))
-    # Remove the uncompressed folder
-    shutil.rmtree(folder_to_compress)
-    print(f"Training saved to: {folder_to_compress}.tar.gz")
-    if POLICY_SCP:
-        send_to_remote(f"{folder_to_compress}.tar.gz")
-
-
-def send_to_remote(local_path):
-    load_dotenv()
-    # 1. Create SSH client
-    ssh = paramiko.SSHClient()
-
-    # 2. Load system and policy keys for unknown hosts
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-    try:
-        # 3. Connect to remote server
-        ssh.connect(hostname=os.getenv("REMOTE_HOST"), username=os.getenv(
-            "REMOTE_USERNAME"), password=os.getenv("REMOTE_PWD"))
-
-        # 4. Start SCP session
-        with SCPClient(ssh.get_transport()) as scp:
-            scp.put(local_path, remote_path=os.getenv("SCP_DEST"))
-            print(
-                f"Transfer completed to {os.getenv("REMOTE_HOST")}:{os.getenv("SCP_DEST")}/{local_path}")
-
-    except Exception as e:
-        print(f"Error while sending to remote: {e}")
-    finally:
-        ssh.close()
-
 
 # Log training progress to wandb
 class WandbCallback(BaseCallback):
@@ -219,12 +106,11 @@ class WandbCallback(BaseCallback):
                 })
         return True
 
-
 if __name__ == "__main__":
     # Parse command line arguments
-    args = parse_arguments()
+    args = parse_train_arguments()
     XML_FILE = args.xml_file
-    MODEL = _parse_model(args.model)
+    MODEL = parse_model(args.model)
     PROCESSES = args.processes
     ITERATIONS = args.iterations
     MODEL_FILE = args.policy
@@ -283,21 +169,22 @@ if __name__ == "__main__":
     except FileNotFoundError:
         print("No pre-trained model found, starting training from scratch.")
 
-        # Create model with appropriate parameters based on algorithm type
-        if MODEL in [PPO, A2C]:
-            model = MODEL("MlpPolicy", vec_env, n_steps=N_STEPS,
-                          device=DEVICE, verbose=1)
-        elif MODEL in [SAC, TD3, DDPG]:
-            model = MODEL("MlpPolicy", vec_env,
-                          buffer_size=BUFFER_SIZE, device=DEVICE, verbose=1)
-        else:
-            model = MODEL("MlpPolicy", vec_env, device=DEVICE, verbose=1)
+    # Create model with appropriate parameters based on algorithm type
+    if MODEL in [PPO, A2C]:
+        model = MODEL("MlpPolicy", vec_env, n_steps=N_STEPS,
+                        device=DEVICE, verbose=1)
+    elif MODEL in [SAC, TD3, DDPG]:
+        model = MODEL("MlpPolicy", vec_env,
+                        buffer_size=BUFFER_SIZE, device=DEVICE, verbose=1)
+    else:
+        model = MODEL("MlpPolicy", vec_env, device=DEVICE, verbose=1)
 
     model.learn(total_timesteps=ITERATIONS,
                 progress_bar=True, callback=WandbCallback())
 
     model.save(f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/policy")
     print(f"Model saved to {POLICIES_FOLDER}/{FOLDER_PREFIX}/policy.zip")
+    
     # Test
     env = make_env()()
     save_configuration(
@@ -307,35 +194,8 @@ if __name__ == "__main__":
 
     env.reset()
     obs, _ = env.reset()
-    # Save also the XML model file used for the environment
-    model_path = f"./models/SBRobot_Snello.xml"
-    with open(f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/SBRobot_Snello.xml", 'w') as f:
-        with open(model_path, 'r') as original_xml:
-            f.write(original_xml.read())
-
-    # Save the scene.xml file
-    scene_path = XML_FILE
-    with open(f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/scene.xml", 'w') as f:
-        with open(scene_path, 'r') as original_scene:
-            f.write(original_scene.read())
-
-    # Save the mesh files
-    mesh_folder = "./models/mesh"
-    dest_mesh_folder = f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/mesh"
-    if not os.path.exists(dest_mesh_folder):
-        os.makedirs(dest_mesh_folder)
-    for mesh_file in os.listdir(mesh_folder):
-        with open(os.path.join(dest_mesh_folder, mesh_file), 'w') as f:
-            with open(os.path.join(mesh_folder, mesh_file), 'r') as original_mesh:
-                f.write(original_mesh.read())
-
-    # Copy the reward.py file in folder f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/"
-    reward_path = "./src/env/wrappers/reward.py"
-    with open(os.path.join(f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/reward.py"), 'w') as f:
-        with open(reward_path, 'r') as original_reward:
-            f.write(original_reward.read())
-
-    folder_to_compress = f"{POLICIES_FOLDER}/{FOLDER_PREFIX}"
+    
+    folder_to_compress = backup(POLICIES_FOLDER, FOLDER_PREFIX, XML_FILE)
 
     # Start testing
     if REGISTER_DATASET and not HEADLESS:
@@ -343,26 +203,13 @@ if __name__ == "__main__":
             writer = csv.writer(file)
             writer.writerow(["Pitch", "Y angular Velocity Y", "Accel X", "Accel Z", "Left Wheel Velocity",
                             "Right Wheel Velocity", "Yaw angular Velocity Z", "Left Motor Command", "Right Motor Command"])
-            for _ in range(TEST_STEPS):
-                action, _ = model.predict(obs, deterministic=True)
-                obs, reward, terminated, truncated, _ = env.step(action)
-                try:
-                    env.render()
-                except Exception as e:
-                    break
-                except KeyboardInterrupt:
-                    compress_and_remove(folder_to_compress, POLICY_SCP)
-                    break
-                if terminated or truncated:
-                    obs, _ = env.reset()
-                writer.writerow(obs.tolist())
+            _run(TEST_STEPS, writer)
     elif not REGISTER_DATASET and not HEADLESS:
         _run(TEST_STEPS)
 
     compress_and_remove(folder_to_compress, POLICY_SCP)
 
-
-def _run(TEST_STEPS):
+def _run(TEST_STEPS, writer: csv.writer = None):
     for _ in range(TEST_STEPS):
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, terminated, truncated, _ = env.step(action)
@@ -375,3 +222,5 @@ def _run(TEST_STEPS):
             break
         if terminated or truncated:
             obs, _ = env.reset()
+        if writer is not None:
+            writer.writerow(obs.tolist())

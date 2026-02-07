@@ -4,7 +4,7 @@ import typing as T
 import gymnasium as gym
 from ahrs.filters import Madgwick
 from scipy.spatial.transform import Rotation as R
-from src.env.self_balancing_robot_env.self_balancing_robot_env import SelfBalancingRobotEnv
+from src.env.robot import SelfBalancingRobotEnv
 
 FS_ACCEL = 16384.0            # LSB/g
 FSR_ACCEL = 2                 # Full scale range in g

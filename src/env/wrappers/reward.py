@@ -2,7 +2,7 @@ import numpy as np
 import typing as T
 import gymnasium as gym
 from scipy.spatial.transform import Rotation as R
-from src.env.self_balancing_robot_env.self_balancing_robot_env import SelfBalancingRobotEnv
+from src.env.robot import SelfBalancingRobotEnv
 
 class RewardWrapper(gym.Wrapper):
     """

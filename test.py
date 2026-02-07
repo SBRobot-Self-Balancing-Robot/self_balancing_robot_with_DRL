@@ -11,45 +11,9 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3 import SAC, PPO, TD3, A2C, DDPG
 from src.env.wrappers.observations import ObservationWrapper
 from src.env.self_balancing_robot_env.self_balancing_robot_env import (SelfBalancingRobotEnv)
+from src.utils.files import compress_and_remove
+from src.utils.parser import parse_test_arguments, parse_model
 
-def _parse_model(model_name: str):
-    """
-    Parses the model name to return the corresponding Stable Baselines3 model class.
-    """
-    models = {
-        "SAC": SAC,
-        "PPO": PPO,
-        "TD3": TD3,
-        "A2C": A2C,
-        "DDPG": DDPG
-    }
-    if model_name in models:
-        return models[model_name]
-    else:
-        return models["SAC"]  # Default to SAC if the model is not recognized
-
-def parse_arguments():
-    """
-    Parsing degli argomenti della riga di comando per il test.
-    """
-    parser = argparse.ArgumentParser(
-        description="Test the self-balancing robot with a trained model"
-    )
-    
-    parser.add_argument("--path", type=str,
-                       default=None,
-                       help="Path to the model to test")
-    
-    # parser.add_argument("--environment-path", type=str, default="./models/scene.xml",
-    #                    help="Path to the environment XML file (default: ./models/scene.xml)")
-
-    parser.add_argument("--max-time", type=float, default=float("inf"),
-                       help="Maximum simulation time (default: infinite)")
-
-    parser.add_argument("--test-steps", type=int, default=10_000,
-                       help="Number of test steps (default: 10000)")
-    
-    return parser.parse_args()
 
 def make_env(environment_path="./models/scene.xml", max_time=float("inf")):
     """
@@ -59,6 +23,13 @@ def make_env(environment_path="./models/scene.xml", max_time=float("inf")):
     env = ObservationWrapper(env)
     env = Monitor(env)
     return env
+
+def read_joystick_input(joystick):
+    rpt = joystick.read(64)
+    if rpt:
+        lx, ly, rx, ry = map(normalize, rpt[1:5])
+        return np.array([lx, ly, rx, ry], dtype=np.float32)  # Return as a numpy array
+    return None  # Return None if no input is read
 
 def extract(folder_path: str) -> str:
     """
@@ -80,25 +51,19 @@ def extract(folder_path: str) -> str:
         print(f"Decompressed folder: {os.path.splitext(os.path.splitext(folder_path)[0])[0]}")
         return os.path.splitext(os.path.splitext(folder_path)[0])[0]
 
-def compress_and_remove(folder_to_compress):
-    # Compress the folder
-    if not os.path.exists(f"{folder_to_compress}.tar.gz"):
-        with tarfile.open(f"{folder_to_compress}.tar.gz", mode='w:gz') as tar:
-            tar.add(folder_to_compress, arcname=os.path.basename(folder_to_compress))
-    # Remove the uncompressed folder
-    shutil.rmtree(folder_to_compress)
-    
 if __name__ == "__main__":
     # Parse degli argomenti della riga di comando
-    args = parse_arguments()
+    args = parse_test_arguments()
     POLICY = args.path
     MAX_TIME = args.max_time
     STEPS = args.test_steps
+    INTERACTIVE = args.interactive
     
     # Load the json configuration
     if POLICY is None:
         raise ValueError("Please provide the path to the model using --path argument.")
     compressed_path = f"./policies/{POLICY}"
+    
     POLICY_FOLDER_PATH = extract(compressed_path) # policies/POLICY
     CONFIG_PATH = f"{POLICY_FOLDER_PATH}/config.json" # policies/POLICY/config.json
     POLICY_PATH = f"{POLICY_FOLDER_PATH}/policy" # policies/POLICY/policy
@@ -116,12 +81,24 @@ if __name__ == "__main__":
         os.rename(f"{POLICY_FOLDER_PATH}/{POLICY}.zip", f"{POLICY_PATH}.zip")
     if not os.path.exists(CONFIG_PATH) and os.path.exists(f"{POLICY_FOLDER_PATH}/{POLICY}.json"):
         os.rename(f"{POLICY_FOLDER_PATH}/{POLICY}.json", CONFIG_PATH)
-    
+
+    if INTERACTIVE:
+        import hid
+        # Attempt to open the joystick device
+        try:
+            joystick = hid.device()
+            joystick.open(VENDOR_ID, PRODUCT_ID)
+            print("Joystick opened successfully.")
+        except Exception as e:
+            print(f"Error opening joystick: {e}")
+            INTERACTIVE = False
+
     print("Test configuration:")
     print(f"  - Model: {POLICY}")
     print(f"  - Environment: {ENV_PATH}")
     print(f"  - Max time: {MAX_TIME}")
     print(f"  - Test steps: {STEPS}")
+    print(f"  - Interactive: {INTERACTIVE}")
     print()
 
     # Get the file from the path
