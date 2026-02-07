@@ -192,8 +192,7 @@ if __name__ == "__main__":
         folder_name=FOLDER_PREFIX, iterations=ITERATIONS, processes=PROCESSES
     )
 
-    env.reset()
-    obs, _ = env.reset()
+
     
     folder_to_compress = backup(POLICIES_FOLDER, FOLDER_PREFIX, XML_FILE)
 
@@ -209,7 +208,9 @@ if __name__ == "__main__":
 
     compress_and_remove(folder_to_compress, POLICY_SCP)
 
-def _run(TEST_STEPS, writer: csv.writer = None):
+def _run(TEST_STEPS, env, writer: csv.writer = None):
+    env.reset()
+    obs, _ = env.reset()
     for _ in range(TEST_STEPS):
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, terminated, truncated, _ = env.step(action)

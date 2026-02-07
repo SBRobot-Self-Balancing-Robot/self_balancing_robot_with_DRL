@@ -1,4 +1,6 @@
 import argparse
+from stable_baselines3 import PPO, TD3, A2C, DDPG, SAC
+
 
 def parse_train_arguments():
     """
@@ -56,6 +58,7 @@ def parse_train_arguments():
 
     return parser.parse_args()
 
+
 def parse_test_arguments():
     """
     Parsing degli argomenti della riga di comando per il test.
@@ -63,24 +66,25 @@ def parse_test_arguments():
     parser = argparse.ArgumentParser(
         description="Test the self-balancing robot with a trained model"
     )
-    
+
     parser.add_argument("--path", type=str,
-                       default=None,
-                       help="Path to the model to test")
-    
+                        default=None,
+                        help="Path to the model to test")
+
     # parser.add_argument("--environment-path", type=str, default="./models/scene.xml",
     #                    help="Path to the environment XML file (default: ./models/scene.xml)")
 
     parser.add_argument("--max-time", type=float, default=float("inf"),
-                       help="Maximum simulation time (default: infinite)")
+                        help="Maximum simulation time (default: infinite)")
 
     parser.add_argument("--test-steps", type=int, default=10_000,
-                       help="Number of test steps (default: 10000)")
+                        help="Number of test steps (default: 10000)")
 
     parser.add_argument("--interactive", action="store_true",
-                       help="Enable interactive mode (default: False)")
-    
+                        help="Enable interactive mode (default: False)")
+
     return parser.parse_args()
+
 
 def parse_model(model_name: str):
     """

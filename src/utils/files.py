@@ -1,3 +1,6 @@
+import os
+import tarfile
+import shutil
 import paramiko
 from scp import SCPClient
 from dotenv import load_dotenv
@@ -28,8 +31,8 @@ def send_to_remote(local_path):
 
 
 def backup(POLICIES_FOLDER: str, FOLDER_PREFIX: str, XML_FILE: str):
-    # Save also the XML model file used for the environment
-    model_path = f"../models/SBRobot_Snello.xml"
+    # Save also the XML model file used for the environment saved in the folder models/ in the root of the project
+    model_path = os.path.join(os.path.dirname(__file__), "../../models/SBRobot_Snello.xml")
     with open(f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/SBRobot_Snello.xml", 'w') as f:
         with open(model_path, 'r') as original_xml:
             f.write(original_xml.read())
@@ -41,7 +44,7 @@ def backup(POLICIES_FOLDER: str, FOLDER_PREFIX: str, XML_FILE: str):
             f.write(original_scene.read())
 
     # Save the mesh files
-    mesh_folder = "../models/mesh"
+    mesh_folder = os.path.join(os.path.dirname(__file__), "../../models/mesh")
     dest_mesh_folder = f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/mesh"
     if not os.path.exists(dest_mesh_folder):
         os.makedirs(dest_mesh_folder)
@@ -51,7 +54,7 @@ def backup(POLICIES_FOLDER: str, FOLDER_PREFIX: str, XML_FILE: str):
                 f.write(original_mesh.read())
 
     # Copy the reward.py file in folder f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/"
-    reward_path = "../src/env/wrappers/reward.py"
+    reward_path = os.path.join(os.path.dirname(__file__), "../env/wrappers/reward.py")
     with open(os.path.join(f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/reward.py"), 'w') as f:
         with open(reward_path, 'r') as original_reward:
             f.write(original_reward.read())
