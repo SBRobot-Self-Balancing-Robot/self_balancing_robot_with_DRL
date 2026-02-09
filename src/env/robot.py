@@ -241,7 +241,7 @@ class SelfBalancingRobotEnv(gym.Env):
         Randomize the center of mass of each body by adding a small positional offset (±2 cm).
         """
         for i in range(self.model.nbody):
-            offset = np.random.uniform(-0.02, 0.02, size=3)  # ±2 cm
+            offset = np.random.uniform(-0.002, 0.002, size=3)  # ±2 mm
             self.model.body_ipos[i] = self.original_body_ipos[i] + offset
 
     def _randomize_imu_pose(self):
