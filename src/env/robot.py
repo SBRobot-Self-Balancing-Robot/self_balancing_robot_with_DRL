@@ -35,7 +35,7 @@ class SelfBalancingRobotEnv(gym.Env):
         self.time_step = self.model.opt.timestep * self.frame_skip # Effective time step of the environment
 
         # Observation space: pitch, wheel velocities
-        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(15,), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(11,), dtype=np.float32)
         
         # Action space
         ctrl_ranges = self.model.actuator_ctrlrange
@@ -63,7 +63,7 @@ class SelfBalancingRobotEnv(gym.Env):
         self.original_body_ipos = self.model.body_ipos.copy()
 
         # Save original IMU position for randomization
-        self.imu_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "IMU")
+        self.imu_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, " ")
         self.original_imu_pos = self.model.body_pos[self.imu_id].copy()
         self.original_imu_quat = self.model.body_quat[self.imu_id].copy()
 
@@ -185,7 +185,7 @@ class SelfBalancingRobotEnv(gym.Env):
         # Reandom orientation
         euler = [
             0.0, # Roll
-            np.random.uniform(-0.05, 0.05), # Pitch
+            np.random.uniform(-0.1, 0.1), # Pitch
             np.random.uniform(-np.pi, np.pi) # Yaw
         ]
         # Euler → Quaternion [x, y, z, w]
@@ -295,3 +295,12 @@ class SelfBalancingRobotEnv(gym.Env):
 
         # Initialize accelerometer initial calibration scale
         self.accel_calib_scale = 1.0 + np.random.uniform(-0.03, 0.03, size=3)
+        
+    def get_environment_observations(self):
+        '''
+        This function takes the environment quantities used for the reward calculation and returns them in a structured way.
+
+        Returns:
+            A tuple containing the relevant environment observations for reward calculation.
+        '''
+        pass

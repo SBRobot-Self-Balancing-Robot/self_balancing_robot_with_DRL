@@ -118,7 +118,7 @@ if __name__ == "__main__":
     print("Configuration loaded:")
     print(json.dumps(config, indent=4))
 
-    MODEL = _parse_model(config.get("model", "PPO"))
+    MODEL = parse_model(config.get("model", "PPO"))
 
     env = make_env(environment_path=ENV_PATH, max_time=MAX_TIME)
 
