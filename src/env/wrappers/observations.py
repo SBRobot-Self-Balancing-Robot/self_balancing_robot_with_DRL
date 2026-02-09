@@ -2,9 +2,10 @@ import mujoco
 import numpy as np
 import typing as T
 import gymnasium as gym
+from src.utils.math import signed_sin
 from ahrs.filters import Madgwick
-from scipy.spatial.transform import Rotation as R
 from src.env.robot import SelfBalancingRobotEnv
+from scipy.spatial.transform import Rotation as R
 
 FS_ACCEL = 16384.0            # LSB/g
 FSR_ACCEL = 2                 # Full scale range in g
@@ -30,7 +31,7 @@ class ObservationWrapper(gym.Wrapper):
         self.madgwick = Madgwick(frequency=1.0/self.env.time_step, beta=0.033)
 
         # Initialize observation values
-        self.direction_vector = np.array([0.0, 0.0, 0.0]) # Normal vector pointing upwards in the robot's frame
+        self.direction_vector = np.array([0.0, 0.0]) # Normal vector pointing upwards in the robot's frame
         self.roll, self.pitch, self.yaw = 0.0, 0.0, 0.0 # Orientation angles of the robot [roll, pitch, yaw]
         self.linear_acceleration = np.zeros(3) # Linear acceleration of the robot [gyro_x, gyro_y, gyro_z]
         self.angular_velocity = np.zeros(3) # Angular velocity of the robot [angular_velocity_x, angular_velocity_y, angular_velocity_z]
@@ -40,6 +41,9 @@ class ObservationWrapper(gym.Wrapper):
         
         # Initialize past values for observation
         self.past_ctrl = np.array([0.0, 0.0])
+
+        # Control variation
+        self.ctrl_variation = np.array([0.0, 0.0])
 
     def step(self, action):
         """
@@ -135,12 +139,12 @@ class ObservationWrapper(gym.Wrapper):
 
         return self.env.data.sensordata[gyro_adr : gyro_adr + 3]
 
-    def _get_body_orientation_angles(self, angular_velocity, linear_acceleration) -> T.Tuple[float, float, float]:
+    def _get_body_orientation_angles(self, angular_velocity, linear_acceleration) -> T.Tuple[np.ndarray, float, float, float]:
         """
         Get the orientation angles of the robot's body in Euler angles (roll, pitch, yaw).
         
         Returns:
-            T.Tuple[float, float, float]: The roll, pitch, and yaw angles of the robot's body.
+            T.Tuple[np.ndarray, float, float, float]: The direction vector and the roll, pitch, and yaw angles of the robot's body.
         """
         # 1. Update the Quaternion State
         # The filter calculates the NEW quaternion based on the OLD quaternion + Sensor Data
@@ -156,12 +160,18 @@ class ObservationWrapper(gym.Wrapper):
         
         # Get the rotation matrix
         rot_matrix = r.as_matrix()
+        xy_vector = rot_matrix[:2,0]
+        norm = np.linalg.norm(xy_vector)
+        if norm > 1e-6:
+            unit_vector = xy_vector / norm
+        else:
+            unit_vector= np.zeros(2)
 
         # Get angles (standard aerospace sequence is usually 'xyz' -> roll, pitch, yaw)
         roll, pitch, yaw = r.as_euler('xyz', degrees=False)
         
         # 3. Return in the SPECIFIC order your previous function defined: (Pitch, Roll, Yaw)
-        return rot_matrix[:,0], pitch, roll, yaw
+        return unit_vector, pitch, roll, yaw
 
     # Observation construction
 
@@ -209,16 +219,11 @@ class ObservationWrapper(gym.Wrapper):
         norm_pitch = self._normalize_value(self.pitch, np.pi/2)
 
         # Angular Velocities (Gyro): Normalized over Full Scale Range (FSR)
-        norm_w_y = self._normalize_value(self.angular_velocity[1], FSR_GYRO * DEG2RAD) # Pitch rate
         norm_w_z = self._normalize_value(self.angular_velocity[2], FSR_GYRO * DEG2RAD) # Yaw rate (real)
 
-        # Acceleration: Normalized over FSR
-        norm_a_x = self._normalize_value(self.linear_acceleration[0], FSR_ACCEL * g)
-        norm_a_z = self._normalize_value(self.linear_acceleration[2], FSR_ACCEL * g)
-
         # Wheel Speeds: Normalized over maximum speed
-        norm_wheel_left = self._normalize_value(self.wheels_velocity[0], MAX_WHEEL_SPEED)
-        norm_wheel_right = self._normalize_value(self.wheels_velocity[1], MAX_WHEEL_SPEED)
+        norm_wheel_left_vel = self._normalize_value(self.wheels_velocity[0], MAX_WHEEL_SPEED)
+        norm_wheel_right_vel = self._normalize_value(self.wheels_velocity[1], MAX_WHEEL_SPEED)
 
         # Normalize control commands
         norm_ctrl_left = self._normalize_value(self.ctrl[0], MAX_WHEEL_SPEED)
@@ -230,10 +235,15 @@ class ObservationWrapper(gym.Wrapper):
 
         # --- 3. values variation ---
         # Compute the variation of control commands over time (derivative)
-        norm_ctrl_left_variation = self._value_variation(norm_ctrl_left, norm_past_ctrl_left)
-        norm_ctrl_right_variation = self._value_variation(norm_ctrl_right, norm_past_ctrl_right)
+        self.ctrl_variation[0] = self._value_variation(norm_ctrl_left, norm_past_ctrl_left)
+        self.ctrl_variation[1] = self._value_variation(norm_ctrl_right, norm_past_ctrl_right)
         
-        # --- 4. Construct Observation Vector ---
+        # --- 4. Setpoints and Errors ---
+        heading_error = self.env.pose_control.heading_error(self.direction_vector) # type: ignore
+        velocity_error = self.env.pose_control.velocity_error((norm_wheel_left_vel + norm_wheel_right_vel)/2) # type: ignore
+        
+        
+        # --- 5. Construct Observation Vector ---
         obsv = np.array([
             # Pitch and related dynamics
             norm_pitch,                 # 1. Balance State
@@ -244,12 +254,15 @@ class ObservationWrapper(gym.Wrapper):
             # Wheels dynamics
             norm_ctrl_left,             # 3. Left Motor Command
             norm_ctrl_right,            # 4. Right Motor Command
-            norm_ctrl_left_variation,   # 5. Left Motor Command Variation
-            norm_ctrl_right_variation,  # 6. Right Motor Command Variation
+            self.ctrl_variation[0],     # 5. Left Motor Command Variation
+            self.ctrl_variation[1],     # 6. Right Motor Command Variation
 
             # Wheels velocities
-            norm_wheel_left,            # 7. Left Wheel Velocity
-            norm_wheel_right,           # 8. Right Wheel Velocity
+            norm_wheel_left_vel,        # 7. Left Wheel Velocity
+            norm_wheel_right_vel,       # 8. Right Wheel Velocity
+            
+            heading_error,              # 9. Heading Error (Direction)
+            velocity_error              # 10. Velocity Error (Speed)
 
         ], dtype=np.float32)
 
@@ -257,14 +270,3 @@ class ObservationWrapper(gym.Wrapper):
 
         return obsv
     
-    def signed_sin(a: np.ndarray, b: np.ndarray, normal: np.ndarray) -> float:
-        """
-        Computes the signed sine of the angle θ between vectors 'a' and 'b',
-        with the sign determined by the direction of the given 'normal' vector.
-
-        θ is the angle from 'a' to 'b' in the plane orthogonal to 'normal'.
-
-        Returns:
-            float: signed sine of the angle, in the range [-1, 1]
-        """
-        return np.dot(np.cross(a, b), normal) / (np.linalg.norm(a) * np.linalg.norm(b))

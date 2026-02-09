@@ -9,6 +9,7 @@ import typing as T
 import gymnasium as gym
 from mujoco import MjModel, MjData
 from mujoco.viewer import launch_passive
+from src.env.control.pose_control import PoseControl
 from scipy.spatial.transform import Rotation as R
 
 class SelfBalancingRobotEnv(gym.Env):
@@ -33,9 +34,8 @@ class SelfBalancingRobotEnv(gym.Env):
         self.max_time = max_time        # Maximum time for the episode
         self.frame_skip = frame_skip    # Number of frames to skip in each step  
         self.time_step = self.model.opt.timestep * self.frame_skip # Effective time step of the environment
-
         # Observation space: pitch, wheel velocities
-        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(9,), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(10,), dtype=np.float32)
         
         # Action space
         ctrl_ranges = self.model.actuator_ctrlrange
@@ -66,6 +66,10 @@ class SelfBalancingRobotEnv(gym.Env):
         self.imu_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, " ")
         self.original_imu_pos = self.model.body_pos[self.imu_id].copy()
         self.original_imu_quat = self.model.body_quat[self.imu_id].copy()
+
+        # Initialize pose control
+        self.pose_control = PoseControl()
+
 
     def step(self, action: T.Tuple[float, float]) -> T.Tuple[np.ndarray, float, bool, bool, dict]: 
         """
@@ -194,6 +198,19 @@ class SelfBalancingRobotEnv(gym.Env):
         self.data.qpos[3:7] = [quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]]
 
         self.Q = np.array([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]])
+        
+        # Pose control randomization
+        if np.random.rand() < 0.5: # 50% chance to randomize pose control parameters
+            self.pose_control.randomize()
+        else:
+            r = R.from_euler('xyz', euler).as_matrix()
+            x_head = r[:2, 0]
+            norm = np.linalg.norm(x_head)
+            if norm > 1e-6:
+                unit_vector = x_head / norm
+            else:
+                unit_vector= np.zeros(2)
+            self.pose_control.heading_angle = unit_vector
 
     def _reset_params(self):
         """

@@ -1,6 +1,6 @@
 import numpy as np
 
-def signed_sin(a: np.ndarray, b: np.ndarray, normal: np.ndarray) -> float:
+def signed_sin(a: np.ndarray, b: np.ndarray) -> float:
     """
     Computes the signed sine of the angle θ between vectors 'a' and 'b',
     with the sign determined by the direction of the given 'normal' vector.
@@ -10,4 +10,9 @@ def signed_sin(a: np.ndarray, b: np.ndarray, normal: np.ndarray) -> float:
     Returns:
         float: signed sine of the angle, in the range [-1, 1]
     """
-    return np.dot(np.cross(a, b), normal) / (np.linalg.norm(a) * np.linalg.norm(b))
+    cross_product = np.cross(a, b)
+    
+    # Normalizzazione
+    norm_product = np.linalg.norm(a) * np.linalg.norm(b)
+    
+    return float(cross_product / norm_product)

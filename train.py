@@ -6,8 +6,6 @@ import csv
 import json
 import time
 import wandb
-import shutil
-import tarfile
 import numpy as np
 import typing as T
 import gymnasium as gym
@@ -16,7 +14,7 @@ from src.utils.files import backup, compress_and_remove
 from src.utils.parser import parse_train_arguments, parse_model
 
 from src.env.robot import SelfBalancingRobotEnv
-from src.env.wrappers.reward import RewardWrapper
+from src.env.wrappers.reward.reward import RewardWrapper
 from src.env.wrappers.observations import ObservationWrapper
 
 from stable_baselines3.common.monitor import Monitor
@@ -59,12 +57,9 @@ def save_configuration(env, xml: str, model: str, folder_name: str, iterations: 
             "max_pitch": unwrapped_env.max_pitch,
             "frame_skip": unwrapped_env.frame_skip,
             "alpha_values": {
-                "alpha_pitch_penalty": reward_calc.alpha_pitch_penalty if reward_calc is not None else None,
-                "alpha_yaw_speed_penalty": reward_calc.alpha_yaw_speed_penalty if reward_calc is not None else None,
-                "alpha_ctrl_variation_penalty": reward_calc.alpha_ctrl_variation_penalty if reward_calc is not None else None,
-                "alpha_x_vel_penalty": reward_calc.alpha_x_vel_penalty if reward_calc is not None else None,
-                "alpha_equilibrium": reward_calc.alpha_equilibrium if reward_calc is not None else None,
-                "alpha_linear_equilibrium": reward_calc.alpha_linear_equilibrium if reward_calc is not None else None
+                "heading": reward_calc.heading_weight if reward_calc else None,
+                "velocity": reward_calc.velocity_weight if reward_calc else None,
+                "control_variety": reward_calc.control_variety_weight if reward_calc else None
             }
 
         }

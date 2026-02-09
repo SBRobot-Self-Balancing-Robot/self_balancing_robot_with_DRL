@@ -54,7 +54,7 @@ def backup(POLICIES_FOLDER: str, FOLDER_PREFIX: str, XML_FILE: str):
                 f.write(original_mesh.read())
 
     # Copy the reward.py file in folder f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/"
-    reward_path = os.path.join(os.path.dirname(__file__), "../env/wrappers/reward.py")
+    reward_path = os.path.join(os.path.dirname(__file__), "../env/wrappers/reward/reward.py")
     with open(os.path.join(f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/reward.py"), 'w') as f:
         with open(reward_path, 'r') as original_reward:
             f.write(original_reward.read())
