@@ -54,9 +54,9 @@ class RewardCalculator:
     HEADING LOCK VERSION: Keeps the robot facing a specific direction (Yaw=0).
     """
     def __init__(self, 
-                    heading_weight: float = 0.8, 
-                    velocity_weight: float = 0.5, 
-                    control_variety_weight: float = 0.2):
+                    heading_weight: float = 1.0, 
+                    velocity_weight: float = 0.7, 
+                    control_variety_weight: float = 1.0):
         self.heading_weight = heading_weight
         self.velocity_weight = velocity_weight
         self.control_variety_weight = control_variety_weight
@@ -82,6 +82,11 @@ class RewardCalculator:
         current_speed = (env.env.data.qvel[0] + env.env.data.qvel[1]) / 2  # Average of left and right wheel velocities
         return env.env.pose_control.velocity_error(current_speed)
     
+    def _pitch(self, env: SelfBalancingRobotEnv) -> float:
+        quat = env.env.data.qpos[3:7]  # Assuming the quaternion is in the order [w, x, y, z]
+        r = R.from_quat([quat[1], quat[2], quat[3], quat[0]]) # Rearrange to [x, y, z, w]
+        return r.as_euler('xyz', degrees=False)[1]  # Return the pitch angle in radians
+    
     def compute_reward(self, env: SelfBalancingRobotEnv) -> float:
         """
         Compute the reward based on the current state of the environment.
@@ -94,11 +99,14 @@ class RewardCalculator:
         heading_error = self._heading_error(env)
         velocity_error = self._velocity_error(env)
         ctrl_variation = env.ctrl_variation
+        ctrl = env.ctrl
+        pitch = self._pitch(env)
         
         
         reward = self.heading_weight * abs(heading_error) * env.env.data.time + \
-                 self.velocity_weight * abs(velocity_error) + \
-                 self.control_variety_weight * np.linalg.norm(ctrl_variation)
+                 self.velocity_weight * (velocity_error) + \
+                 self.control_variety_weight * np.linalg.norm(ctrl_variation) + \
+                 self._kernel(abs(pitch), alpha=0.01) * self._kernel(np.linalg.norm(ctrl), alpha=0.5)                
         
         
         # reward = -(self._kernel(heading_error, alpha=0.1)+ 
