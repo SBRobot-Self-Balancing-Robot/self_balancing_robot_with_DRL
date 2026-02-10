@@ -8,7 +8,6 @@ import numpy as np
 import typing as T
 import gymnasium as gym
 from mujoco import MjModel, MjData
-from src.utils.rendering import render_vector, render_point
 from mujoco.viewer import launch_passive
 from src.env.control.pose_control import PoseControl
 from scipy.spatial.transform import Rotation as R
@@ -130,9 +129,9 @@ class SelfBalancingRobotEnv(gym.Env):
             self.viewer.sync()
             # render the heading vector
             heading_vector = self.pose_control.heading
-            heading_vector = np.array(self.pose_control.heading[0], self.pose_control.heading[1], 0.0)
+            vector_to_render = np.array([heading_vector[0], heading_vector[1], 0.0])
             
-            render_vector(self.viewer, origin=self.data.xpos[0], vector=heading_vector, color=[0.0, 1.0, 0.0, 1.0], radius=0.01, offset=0.05)
+            self.render_vector(self.viewer, origin=self.data.xpos[0], vector=vector_to_render, color=[0.0, 1.0, 0.0, 1.0], radius=0.01, offset=0.05)
             time.sleep(self.model.opt.timestep * self.frame_skip)  # Sleep for the duration of the frame skip
         else:
             raise RuntimeError("Viewer is not running. Please reset the environment or start the viewer.")    
@@ -319,11 +318,39 @@ class SelfBalancingRobotEnv(gym.Env):
         # Initialize accelerometer initial calibration scale
         self.accel_calib_scale = 1.0 + np.random.uniform(-0.03, 0.03, size=3)
         
-    def get_environment_observations(self):
-        '''
-        This function takes the environment quantities used for the reward calculation and returns them in a structured way.
+    def _get_active_scenes(self) -> Optional[mujoco.MjvScene]:
+        """Helper to get the scenes objects."""
+        scenes = []
+        renderer = mujoco.Renderer(self.model, self.data)
+        # Check if renderer is initialized
+        if renderer is not None:
+            scenes.append(renderer.scene)
 
-        Returns:
-            A tuple containing the relevant environment observations for reward calculation.
-        '''
-        pass
+        # Check if viewer is initialized
+        if self.viewer is not None:
+            scenes.append(self.viewer.user_scn)
+
+        if len(scenes) == 0:
+            print("Warning: No active scenes for rendering.")
+            return None
+
+        return scenes
+
+    def render_vector(self, origin: np.ndarray, vector: np.ndarray, color: List[float], scale: float = 0.2, radius: float = 0.005, offset: float = 0.0):
+        """Helper to render an arrow geometry in the scene."""
+        scns = self._get_active_scenes()
+
+        if scns is None: return # No active scenes
+
+        for scn in scns:
+            if scn.ngeom >= scn.maxgeom: return # Check geom buffer space
+
+            origin_offset = origin.copy() + np.array([0, 0, offset])
+            endpoint = origin_offset + (vector * scale)
+            idx = scn.ngeom
+            try:
+                mujoco.mjv_initGeom(scn.geoms[idx], mujoco.mjtGeom.mjGEOM_ARROW1, np.zeros(3), np.zeros(3), np.zeros(9), np.array(color, dtype=np.float32))
+                mujoco.mjv_connector(scn.geoms[idx], mujoco.mjtGeom.mjGEOM_ARROW1, radius, origin_offset, endpoint)
+                scn.ngeom += 1
+            except IndexError:
+                print("Warning: Ran out of geoms in MuJoCo scene for rendering vector.")
