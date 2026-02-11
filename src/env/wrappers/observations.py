@@ -254,9 +254,15 @@ class ObservationWrapper(gym.Wrapper):
         self.ctrl_variation[1] = self._value_variation(norm_ctrl_right, norm_past_ctrl_right)
         
         # --- 4. Setpoints and Errors ---
-        heading_error = self.env.pose_control.heading_error(self.direction_vector) # type: ignore
-        velocity_error = self.env.pose_control.velocity_error((norm_wheel_left_vel + norm_wheel_right_vel)/2) # type: ignore
+        if np.linalg.norm(self.env.pose_control.heading) > 1e-6:
+            heading_error = self.env.pose_control.heading_error(self.direction_vector)
+        else:
+            heading_error = 0.0
         
+        if self.env.pose_control.speed != 0.0:
+            velocity_error = self.env.pose_control.velocity_error((norm_wheel_left_vel + norm_wheel_right_vel)/2) # type: ignore
+        else:
+            velocity_error = 0.0
         
         # --- 5. Construct Observation Vector ---
         obsv = np.array([
@@ -278,7 +284,7 @@ class ObservationWrapper(gym.Wrapper):
             norm_wheel_right_vel,       # 9. Right Wheel Velocity
             (norm_wheel_left_vel + norm_wheel_right_vel)/2, # 10. Linear Velocity (Speed)
             
-            -heading_error,              # 11. Heading Error (Direction)
+            heading_error,              # 11. Heading Error (Direction)
             velocity_error              # 12. Velocity Error (Speed)
 
         ], dtype=np.float32)

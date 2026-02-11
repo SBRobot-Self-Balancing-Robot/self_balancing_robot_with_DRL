@@ -69,5 +69,6 @@ def compress_and_remove(folder_to_compress, POLICY_SCP: bool = False):
     # Remove the uncompressed folder
     shutil.rmtree(folder_to_compress)
     print(f"Training saved to: {folder_to_compress}.tar.gz")
+    print(f"Filename: {folder_to_compress}")
     if POLICY_SCP:
         send_to_remote(f"{folder_to_compress}.tar.gz")

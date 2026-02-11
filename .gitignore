@@ -7,7 +7,8 @@ wandb/
 wandb/debug.log
 wandb/debug-internal.log
 wandb/latest-run
-*.txt
 *.TXT
 *.log
 .env
+.MUJOCO_LOG.TXT
+.temp.txt

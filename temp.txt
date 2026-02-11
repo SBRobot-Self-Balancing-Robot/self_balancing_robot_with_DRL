@@ -1,0 +1,71 @@
+# Ideal data for reward computation
+self.wheels_real_velocity = np.zeros(2) # Ideal angular velocity of the wheels [wheel_left_velocity, wheel_right_velocity]
+self.real_linear_acceleration = np.zeros(3) # Ideal linear acceleration of the robot [accel_x, accel_y, accel_z]
+self.real_angular_velocity = np.zeros(3) # Ideal angular velocity of the robot [gyro_x, gyro_y, gyro_z]   
+
+def _get_wheels_real_angular_velocity(self) -> T.Tuple[float, float]:
+    """
+    Get the real angular velocities of the robot's wheels without quantization.
+    Returns:
+        T.Tuple[float, float]: The angular velocities of the left and right wheels.
+    """
+    # Index of the wheel position sensors
+    left_vel_id = mujoco.mj_name2id(self.env.model, mujoco.mjtObj.mjOBJ_SENSOR, "left_wheel_vel")
+    right_vel_id = mujoco.mj_name2id(self.env.model, mujoco.mjtObj.mjOBJ_SENSOR, "right_wheel_vel")
+
+    # Address of the wheel position sensor data
+    left_vel_adr = self.env.model.sensor_adr[left_vel_id]
+    right_vel_adr = self.env.model.sensor_adr[right_vel_id]
+
+    # Get the wheel positions
+    left_vel = self.env.data.sensordata[left_vel_adr]
+    right_vel = self.env.data.sensordata[right_vel_adr]
+    
+    return left_vel, right_vel
+
+def _get_real_body_linear_acceleration(self) -> np.ndarray:
+    """
+    Get the ideal linear accelerations of the robot's body without noise.
+    
+    Returns:
+        np.ndarray: The linear accelerations of the robot's body in the order [acceleration_x, acceleration_y, acceleration_z].
+    """
+    # Index of the ideal accelerometer sensor
+    accel_id = mujoco.mj_name2id(self.env.model, mujoco.mjtObj.mjOBJ_SENSOR, "ideal_accelerometer")
+
+    # Address of the ideal accelerometer sensor data
+    accel_adr = self.env.model.sensor_adr[accel_id]
+
+    # Get the ideal accelerometer data
+    accel_data = self.env.data.sensordata[accel_adr : accel_adr + 3]
+
+    return accel_data
+
+def _get_real_robot_angular_velocity(self) -> np.ndarray:
+    """
+    Get the ideal angular velocity of the robot without noise.
+    
+    Returns:
+        np.ndarray: The angular velocity of the robot in the order [angular_velocity_x, angular_velocity_y, angular_velocity_z].
+    """
+    # Index of the ideal gyroscope sensor
+    gyro_id = mujoco.mj_name2id(self.env.model, mujoco.mjtObj.mjOBJ_SENSOR, "ideal_gyroscope")
+
+    # Address of the ideal gyroscope sensor data
+    gyro_adr = self.env.model.sensor_adr[gyro_id]
+
+    # Get the ideal gyroscope data
+    gyro_data = self.env.data.sensordata[gyro_adr : gyro_adr + 3]
+
+    return gyro_data
+
+def _get_linear_velocity(self) -> T.Tuple[float, float]:
+    """
+    Get the linear velocities of the robot in the x and y directions.
+    
+    Returns:
+        T.Tuple[float, float]: The linear velocities in the x and y directions.
+    """
+    x_vel, y_vel = self.env.data.qvel[0:2]
+    
+    return x_vel, y_vel

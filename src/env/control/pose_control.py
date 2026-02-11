@@ -12,7 +12,7 @@ class PoseControl:
     DEFAULT_SPEED_RANGE: T.Tuple[float, float] = (-1.5, 1.5) # rad/s
 
     def __init__(self):
-        self._heading = np.array([1.0, 0.0])   # Unit heading vector (pointing along x-axis)
+        self._heading = np.array([0.0, 0.0])          # Unit heading vector (pointing along x-axis)
         self._speed = 0.0                             # Desired speed (m/s)
 
     # ------------------------------------------------------------------ #
@@ -66,11 +66,10 @@ class PoseControl:
 
     def update_heading(self):
         """
-        Update the heading vector based on the current 
-        
-        :param self: Descrizione
+        Update the heading vector based on the current heading angle.
         """
         pass
+
     def generate_random_heading(self) -> np.ndarray:
         """
         Generate a random heading direction uniformly sampled on the unit circle (XY plane).
@@ -143,7 +142,6 @@ class PoseControl:
         """Reset all pose control parameters to their default values."""
         self._heading = np.array([1.0, 0.0])
         self._speed = 0.0
-        self._target_point = np.array([0.0, 0.0])
 
     # ------------------------------------------------------------------ #
     #                         DUNDER METHODS                              #
@@ -154,5 +152,4 @@ class PoseControl:
             f"PoseControl("
             f"heading_angle={np.degrees(self.heading_angle):.1f}°, "
             f"speed={self._speed:.2f} m/s, "
-            f"target={self._target_point})"
         )
