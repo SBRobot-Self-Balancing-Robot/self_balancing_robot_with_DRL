@@ -64,6 +64,13 @@ class PoseControl:
     #                    RANDOM GENERATION METHODS                        #
     # ------------------------------------------------------------------ #
 
+    def update_heading(self):
+        """
+        Update the heading vector based on the current 
+        
+        :param self: Descrizione
+        """
+        pass
     def generate_random_heading(self) -> np.ndarray:
         """
         Generate a random heading direction uniformly sampled on the unit circle (XY plane).
