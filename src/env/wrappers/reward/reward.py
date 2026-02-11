@@ -103,8 +103,11 @@ class RewardCalculator:
         pitch = self._pitch(env)
         
         # if the heading error is less than a given threshold, update the heading angle
-        if heading_error < 0.1:
+        if heading_error < 0.1 and np.random.rand() < 0.5:
             env.env.pose_control.update_heading()
+            
+        if np.random.rand() < 0.5:
+            env.env.pose_control.generate_random_speed()
         
         reward = self.heading_weight * abs(heading_error) * env.env.data.time + \
                  self.velocity_weight * (velocity_error) + \

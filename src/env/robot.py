@@ -185,10 +185,6 @@ class SelfBalancingRobotEnv(gym.Env):
 
         self.Q = np.array([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]])
         
-        # Pose control randomization
-        # if np.random.rand() < 0.5: # 50% chance to randomize pose control parameters
-        #     self.pose_control.randomize()
-        # else:
         r = R.from_euler('xyz', euler).as_matrix()
         x_head = r[:2, 0]
         norm = np.linalg.norm(x_head)
@@ -308,21 +304,10 @@ class SelfBalancingRobotEnv(gym.Env):
         
         if self.viewer.is_running():
             self.viewer.user_scn.ngeom = 0 
-            # ==========================
-
-            origin = self.data.xpos[0] 
 
             # --- Desired heading (green) from PoseControl ---
             desired_heading = self.pose_control.heading
             desired_vector = np.array([desired_heading[0], desired_heading[1], 0.0])
-
-            self.render_vector(
-                origin=origin, 
-                vector=desired_vector, 
-                color=[0.0, 1.0, 0.0, 1.0], 
-                radius=0.02, 
-                scale=0.5 
-            )
 
             # --- Current heading (red) from robot pose, attached to chassis ---
             chassis_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "Chassis")
@@ -334,7 +319,13 @@ class SelfBalancingRobotEnv(gym.Env):
             rot = R.from_quat([quat[1], quat[2], quat[3], quat[0]])  # scipy wants [x, y, z, w]
             _, _, yaw = rot.as_euler('xyz', degrees=False)
             current_heading = np.array([np.cos(yaw), np.sin(yaw), 0.0])
-
+            self.render_vector(
+                origin=origin, 
+                vector=desired_vector, 
+                color=[0.0, 1.0, 0.0, 1.0], 
+                radius=0.02, 
+                scale=0.5 
+            )
             self.render_vector(
                 # put the origin above the robot 
                 origin=origin, 
