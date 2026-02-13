@@ -56,7 +56,7 @@ class RewardCalculator:
     """
     def __init__(self, 
                     heading_weight: float = 1.0, 
-                    velocity_weight: float = 0.7, 
+                    velocity_weight: float = 1.0, 
                     control_variety_weight: float = 1.0):
         self.heading_weight = heading_weight
         self.velocity_weight = velocity_weight

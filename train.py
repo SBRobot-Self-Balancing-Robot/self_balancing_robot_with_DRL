@@ -326,42 +326,43 @@ if __name__ == "__main__":
         # Note: We create a single env, not vectorized, for video recording
         eval_env = make_env(render_mode="rgb_array")()
         
-        try:
-            obs, _ = eval_env.reset()
-            done = False
-            truncated = False
-            frames = []
-            
-            while not (done or truncated):
-                # Predict
-                action, _ = model.predict(obs, deterministic=True)
-                obs, reward, terminated, truncated, _ = eval_env.step(action)
+        if not HEADLESS:
+            try:
+                obs, _ = eval_env.reset()
+                done = False
+                truncated = False
+                frames = []
                 
-                # Render and capture frame
-                frame = eval_env.render()
-                if frame is not None:
-                    frames.append(frame)
-                
-                done = terminated
-                
-                # Break if too long (failsafe)
-                if len(frames) > 2000: 
-                    break
+                while not (done or truncated):
+                    # Predict
+                    action, _ = model.predict(obs, deterministic=True)
+                    obs, reward, terminated, truncated, _ = eval_env.step(action)
+                    
+                    # Render and capture frame
+                    frame = eval_env.render()
+                    if frame is not None:
+                        frames.append(frame)
+                    
+                    done = terminated
+                    
+                    # Break if too long (failsafe)
+                    if len(frames) > 2000: 
+                        break
 
-            # Save video using imageio
-            if frames:
-                imageio.mimsave(eval_video_filename, frames, fps=30)
-                print(f"Video saved to {eval_video_filename}")
-            else:
-                print("No frames captured, video not saved.")
+                # Save video using imageio
+                if frames:
+                    imageio.mimsave(eval_video_filename, frames, fps=30)
+                    print(f"Video saved to {eval_video_filename}")
+                else:
+                    print("No frames captured, video not saved.")
 
-        except Exception as e:
-            print(f"Error during video evaluation: {e}")
-            import traceback
-            traceback.print_exc()
-        finally:
-            eval_env.close()
-            del eval_env
+            except Exception as e:
+                print(f"Error during video evaluation: {e}")
+                import traceback
+                traceback.print_exc()
+            finally:
+                eval_env.close()
+                del eval_env
 
     print("\n--- Training Loop Complete ---")
 
