@@ -36,7 +36,7 @@ class SelfBalancingRobotEnv(gym.Env):
         self.frame_skip = frame_skip    # Number of frames to skip in each step  
         self.time_step = self.model.opt.timestep * self.frame_skip # Effective time step of the environment
         # Observation space: pitch, wheel velocities
-        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(12,), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(11,), dtype=np.float32)
         
         # Action space
         ctrl_ranges = self.model.actuator_ctrlrange
@@ -317,8 +317,6 @@ class SelfBalancingRobotEnv(gym.Env):
 
         # Reset velocity control (keeps curriculum phase across episodes)
         self.velocity_control.reset()
-        # Generate a random initial velocity target within the current curriculum range
-        self.velocity_control.generate_random()
 
         # Reset pose control
         self.pose_control.reset()
@@ -369,14 +367,24 @@ class SelfBalancingRobotEnv(gym.Env):
                 scale=0.5 
             )
             
-            # Also show the normal (current heading) rotated by 180 to visualize the back direction
-            back_heading = -current_heading
+            # # Also show the normal (current heading) rotated by 180 to visualize the back direction
+            # back_heading = -current_heading
+            # self.render_vector(
+            #     origin=origin, 
+            #     vector=back_heading, 
+            #     color=[1.0, 0.0, 0.0, 0.5], 
+            #     radius=0.02, 
+            #     scale=0.5 
+            # )
+
+            # Render the velocity as a vector attached to the chassis (use self.velocity_control.speed in the forward direction)
+            velocity_vector = current_heading * self.velocity_control.speed * 0.5  # scale down for visualization
             self.render_vector(
                 origin=origin, 
-                vector=back_heading, 
-                color=[1.0, 0.0, 0.0, 0.5], 
+                vector=velocity_vector, 
+                color=[0.0, 0.0, 1.0, 0.5], 
                 radius=0.02, 
-                scale=0.5 
+                scale=1.0
             )
 
             self.viewer.sync()

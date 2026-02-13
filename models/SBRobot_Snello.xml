@@ -115,6 +115,7 @@
     <accelerometer site="FRAME" name="ideal_accelerometer"/>
     <!-- Indices 13, 14, 15 -->
     <gyro site="FRAME" name="ideal_gyroscope"/>
+    <velocimeter site="FRAME" name="body_vel"/>
   </sensor>
 
 </mujoco>

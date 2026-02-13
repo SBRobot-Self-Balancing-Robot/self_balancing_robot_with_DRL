@@ -282,10 +282,9 @@ class ObservationWrapper(gym.Wrapper):
             # Wheels velocities
             norm_wheel_left_vel,        # 8. Left Wheel Velocity
             norm_wheel_right_vel,       # 9. Right Wheel Velocity
-            (norm_wheel_left_vel + norm_wheel_right_vel)/2, # 10. Linear Velocity (Speed)
             
             heading_error,              # 11. Heading Error (Direction)
-            velocity_error              # 12. Velocity Error (Speed)
+            self.env.velocity_control.speed
 
         ], dtype=np.float32)
 

@@ -170,6 +170,8 @@ if __name__ == "__main__":
                 velocity_control.speed = min(velocity_control.speed + SPEED_STEP, MAX_SPEED)
             if keyboard.Key.down in keys_pressed:
                 velocity_control.speed = max(velocity_control.speed - SPEED_STEP, -MAX_SPEED)
+            if keyboard.Key.up not in keys_pressed and keyboard.Key.down not in keys_pressed:
+                velocity_control.speed = 0.0
             if 'r' in keys_pressed:
                 pose_control.reset()
                 velocity_control.speed = 0.0
@@ -177,7 +179,7 @@ if __name__ == "__main__":
             # Automatic random heading updates
             if step > 0 and step % HEADING_UPDATE_INTERVAL == 0:
                 old_angle = np.degrees(pose_control.heading_angle)
-                pose_control.update_heading()
+                pose_control.update()
                 new_angle = np.degrees(pose_control.heading_angle)
 
         action, _states = model.predict(obs, deterministic=True)

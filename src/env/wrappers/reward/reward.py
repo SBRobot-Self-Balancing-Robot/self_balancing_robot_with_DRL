@@ -1,3 +1,4 @@
+import mujoco
 import numpy as np
 import typing as T
 import gymnasium as gym
@@ -78,8 +79,18 @@ class RewardCalculator:
         return env.env.pose_control.error(forward_vector)
     
     def _velocity_error(self, env: SelfBalancingRobotEnv) -> float:
+        # Index of the velocity sensor
+        vel_id = mujoco.mj_name2id(env.env.model, mujoco.mjtObj.mjOBJ_SENSOR, "body_vel") # with noise
+
+        # Address of the velocity sensor data
+        vel_adr = env.env.model.sensor_adr[vel_id]
+
+        # Velocity sensor sata
+        vel_data = env.env.data.sensordata[vel_adr : vel_adr + 3]
+
         # Compute the velocity error based on the robot's current speed
-        current_speed = (env.env.data.qvel[6] + env.env.data.qvel[7]) / 2  # Average of left and right wheel velocities
+        current_speed = np.sqrt(vel_data[0]**2 + vel_data[2]**2) * np.sign(vel_data[0])
+        
         return env.env.velocity_control.error(current_speed)
     
     def _pitch(self, env: SelfBalancingRobotEnv) -> float:
@@ -101,17 +112,17 @@ class RewardCalculator:
         ctrl_variation = env.ctrl_variation
         ctrl = env.ctrl
         pitch = self._pitch(env)
-        
-        reward = self.heading_weight * abs(heading_error) * env.env.data.time + \
-                 self.velocity_weight * (velocity_error) + \
-                 self.control_variety_weight * np.linalg.norm(ctrl_variation) + \
-                 self._kernel(abs(pitch), alpha=0.01) * self._kernel(np.linalg.norm(ctrl), alpha=0.5)                
+         
+        reward = - self.heading_weight * abs(heading_error) \
+                 + self.velocity_weight * (1 - abs(velocity_error)) \
+                 - self.control_variety_weight * np.linalg.norm(ctrl_variation) \
+                 #+ self._kernel(np.linalg.norm(ctrl), 0.01) * self._kernel(heading_error, 0.005) * self._kernel(velocity_error, 0.005)               
         
         
         # reward = -(self._kernel(heading_error, alpha=0.1)+ 
         #            self._kernel(velocity_error, alpha=0.05)+ 
         #            self._kernel(float(np.linalg.norm(ctrl_variation)), alpha=0.25))
-        return -reward # type: ignore
+        return reward # type: ignore
 
     def _kernel(self, x: float, alpha: float) -> float:
         return np.exp(-(x**2)/alpha)
