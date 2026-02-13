@@ -255,12 +255,12 @@ class ObservationWrapper(gym.Wrapper):
         
         # --- 4. Setpoints and Errors ---
         if np.linalg.norm(self.env.pose_control.heading) > 1e-6:
-            heading_error = self.env.pose_control.heading_error(self.direction_vector)
+            heading_error = self.env.pose_control.error(self.direction_vector)
         else:
             heading_error = 0.0
         
-        if self.env.pose_control.speed != 0.0:
-            velocity_error = self.env.pose_control.velocity_error((norm_wheel_left_vel + norm_wheel_right_vel)/2) # type: ignore
+        if self.env.velocity_control.speed != 0.0:
+            velocity_error = self.env.velocity_control.error((norm_wheel_left_vel + norm_wheel_right_vel)/2) # type: ignore
         else:
             velocity_error = 0.0
         

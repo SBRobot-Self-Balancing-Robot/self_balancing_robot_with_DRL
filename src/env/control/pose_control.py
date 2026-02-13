@@ -1,19 +1,19 @@
 import numpy as np
 import typing as T
 from src.utils.math import signed_sin
+from scipy.spatial.transform import Rotation as R
+from src.env.control.base_control import BaseControl
 
-class PoseControl:
+
+class PoseControl(BaseControl):
     """
     This class handles the random generation of the heading vector 
     and the target point for the robot to follow.
     """
 
-    # Default ranges for random generation
-    DEFAULT_SPEED_RANGE: T.Tuple[float, float] = (-1.5, 1.5) # rad/s
-
     def __init__(self):
+        super().__init__()
         self._heading = np.array([0.0, 0.0])          # Unit heading vector (pointing along x-axis)
-        self._speed = 0.0                             # Desired speed (m/s)
 
     # ------------------------------------------------------------------ #
     #                         PROPERTIES                                  #
@@ -43,28 +43,11 @@ class PoseControl:
         """Set the heading from a yaw angle (radians). Z component is kept at 0."""
         self._heading = np.array([versor[0], versor[1]])
 
-    @property
-    def speed(self) -> float:
-        """Get the desired linear speed (m/s)."""
-        return self._speed
-
-    @speed.setter
-    def speed(self, value: float) -> None:
-        """Set the desired linear speed (m/s). Must be non-negative."""
-        if value < 0.0:
-            raise ValueError(f"Speed must be non-negative, got {value}.")
-        self._speed = float(value)
-
-    @property
-    def velocity_vector(self) -> np.ndarray:
-        """Get the velocity vector (heading * speed) in 3D."""
-        return self._heading * self._speed
-
     # ------------------------------------------------------------------ #
     #                    RANDOM GENERATION METHODS                        #
     # ------------------------------------------------------------------ #
 
-    def update_heading(self):
+    def update(self):
         """
         Update the heading vector based on the current heading angle.
         """
@@ -74,7 +57,7 @@ class PoseControl:
         new_angle = current_angle + delta_angle
         self.heading_angle = np.array([np.cos(new_angle), np.sin(new_angle)])
 
-    def generate_random_heading(self) -> np.ndarray:
+    def generate_random(self) -> np.ndarray:
         """
         Generate a random heading direction uniformly sampled on the unit circle (XY plane).
         
@@ -85,37 +68,36 @@ class PoseControl:
         self._heading = np.array([np.cos(yaw), np.sin(yaw)])
         return self._heading.copy()
 
-    def generate_random_speed(self,
-                              low: T.Optional[float] = None,
-                              high: T.Optional[float] = None) -> float:
-        """
-        Generate a random speed uniformly sampled within [low, high].
-
-        Args:
-            low:  Minimum speed (default: DEFAULT_SPEED_RANGE[0]).
-            high: Maximum speed (default: DEFAULT_SPEED_RANGE[1]).
-
-        Returns:
-            float: The new desired speed.
-        """
-        low = low if low is not None else self.DEFAULT_SPEED_RANGE[0]
-        high = high if high is not None else self.DEFAULT_SPEED_RANGE[1]
-        self._speed = float(np.random.uniform(low, high))
-        return self._speed
-
-    def randomize(self) -> None:
-        """
-        Convenience method: randomize heading, speed, and target point at once.
-
-        """
-        self.generate_random_heading()
-        self.generate_random_speed()
-
     # ------------------------------------------------------------------ #
     #                        UTILITY METHODS                              #
     # ------------------------------------------------------------------ #
 
-    def heading_error(self, direction_vector: np.ndarray) -> float:
+    def error_with_quaternion(self, quat: np.ndarray) -> float:
+        """
+        Convert a quaternion to a heading unit vector in the XY plane and compute the signed angle error.
+
+        Args:
+            quat: A 4D array representing the quaternion (w, x, y, z).
+        Returns:
+            float: The signed angle error in radians.
+        """
+        r = R.from_quat([quat[1], quat[2], quat[3], quat[0]]) # Rearrange to [x, y, z, w]
+        rot_matrix = r.as_matrix()
+        # The forward direction in the robot's local frame is typically along the x-axis
+        forward_vector = rot_matrix[:2, 0]  # Get the first column of the rotation
+        # Normalize the forward vector
+        norm = np.linalg.norm(forward_vector)
+        if norm > 1e-6:
+            forward_vector /= norm
+        else:
+            forward_vector = np.array([0.0, 0.0])
+        
+        return self.error(forward_vector)
+
+    def error(
+        self, 
+        direction_vector
+        ) -> float:
         """
         Compute the signed angle error between the current heading and a given direction vector.
 
@@ -131,29 +113,13 @@ class PoseControl:
             raise ValueError(f"Direction vector must have 2 elements, got {dir_vec.shape[0]}.")
         return float(signed_sin(self._heading[:2], dir_vec[:2]))
 
-    def velocity_error(self, current_speed: float) -> float:
-        """
-        Compute the speed error between the desired speed and the current speed.
-
-        Args:
-            current_speed: The current speed of the robot (m/s).
-        Returns:
-            float: The speed error (desired - current).
-        """
-        return self._speed - current_speed
-
     def reset(self) -> None:
         """Reset all pose control parameters to their default values."""
         self._heading = np.array([1.0, 0.0])
-        self._speed = 0.0
 
     # ------------------------------------------------------------------ #
-    #                         DUNDER METHODS                              #
+    #                         DUNDER METHODS                             #
     # ------------------------------------------------------------------ #
 
     def __repr__(self) -> str:
-        return (
-            f"PoseControl("
-            f"heading_angle={np.degrees(self.heading_angle):.1f}°, "
-            f"speed={self._speed:.2f} m/s, "
-        )
+        return (f"PoseControl(heading={self._heading}, angle={np.degrees(self.heading_angle):.1f}°)")

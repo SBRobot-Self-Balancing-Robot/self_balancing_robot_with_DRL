@@ -10,6 +10,7 @@ import gymnasium as gym
 from mujoco import MjModel, MjData
 from mujoco.viewer import launch_passive
 from src.env.control.pose_control import PoseControl
+from src.env.control.velocity_control import VelocityControl
 from scipy.spatial.transform import Rotation as R
 
 class SelfBalancingRobotEnv(gym.Env):
@@ -69,7 +70,9 @@ class SelfBalancingRobotEnv(gym.Env):
 
         # Initialize pose control
         self.pose_control = PoseControl()
-
+        self.velocity_control = VelocityControl()
+        self.pose_hold_timer = 0
+        self.training = True
 
     def step(self, action: T.Tuple[float, float]) -> T.Tuple[np.ndarray, float, bool, bool, dict]: 
         """
@@ -90,13 +93,26 @@ class SelfBalancingRobotEnv(gym.Env):
         action = np.clip(action, self.low, self.high)
         self.data.ctrl[:] = action
         
+        heading_error = self.pose_control.error_with_quaternion(quat=self.data.qpos[3:7])
+        current_avg_speed = (self.data.qvel[6] + self.data.qvel[7]) / 2
+        if self.training:
+            if heading_error < 0.1:
+                self.pose_control.update()
+
+            # Update velocity control: tracks hold time, checks convergence,
+            # applies incremental changes, and attenuates speed when heading error is large
+            self.velocity_control.update(
+                current_speed=current_avg_speed,
+                heading_error=heading_error
+            )
+            
         for _ in range(self.frame_skip):
             mujoco.mj_step(self.model, self.data)  # Step the simulation
-            
+        
         terminated = self._is_terminated()
         truncated = self._is_truncated()
         
-        return [], 0.0, terminated, truncated, {}
+        return [], 0.0, terminated, truncated, {} # type: ignore
 
     def reset(self, seed: T.Optional[int] = None, options: T.Optional[dict] = None) -> T.Tuple[np.ndarray, dict]:
         """
@@ -113,6 +129,13 @@ class SelfBalancingRobotEnv(gym.Env):
         if seed is not None:
             np.random.seed(seed)
         super().reset(seed=seed)
+
+        # Report episode result for curriculum learning (before data reset)
+        # data.time > 0 ensures we skip the very first reset (no episode has run yet)
+        if self.training and self.data.time > 0:
+            success = not self._is_truncated()  # success = reached max_time without falling
+            self.velocity_control.report_episode_result(success)
+
         mujoco.mj_resetData(self.model, self.data)  # Reset the simulation data
         self._initialize_random_state()
         return [], {}    
@@ -292,6 +315,14 @@ class SelfBalancingRobotEnv(gym.Env):
         # Randomize wheels friction
         self._randomize_wheel_friction()
 
+        # Reset velocity control (keeps curriculum phase across episodes)
+        self.velocity_control.reset()
+        # Generate a random initial velocity target within the current curriculum range
+        self.velocity_control.generate_random()
+
+        # Reset pose control
+        self.pose_control.reset()
+
         # Initialize accelerometer initial calibration scale
         self.accel_calib_scale = 1.0 + np.random.uniform(-0.03, 0.03, size=3)
         
@@ -312,6 +343,9 @@ class SelfBalancingRobotEnv(gym.Env):
             # --- Current heading (red) from robot pose, attached to chassis ---
             chassis_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "Chassis")
             chassis_pos = self.data.xpos[chassis_id].copy()
+            
+            self.viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+            self.viewer.cam.trackbodyid = chassis_id
             # Put the origin above the robot, but attached to it (take the height of the chassis into account)
             origin = chassis_pos + np.array([0.0, 0.0, 0.2])
 

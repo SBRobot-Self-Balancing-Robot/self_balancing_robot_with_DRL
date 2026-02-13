@@ -55,6 +55,8 @@ def parse_train_arguments():
 
     parser.add_argument("--policy-scp", action="store_true",
                         help="Copy the policy to the remote server (default: False)", default=False)
+    parser.add_argument("--wandb", action="store_true",
+                        help="Use Weights & Biases for experiment tracking (default: False)", default=False)
 
     return parser.parse_args()
 

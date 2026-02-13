@@ -142,27 +142,31 @@ if __name__ == "__main__":
     TEST_STEPS = args.test_steps
     HEADLESS = args.headless
     POLICY_SCP = args.policy_scp
+    WANDB = args.wandb
+
 
     timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
     if FILE_PREFIX is None:
         FILE_PREFIX = f"{MODEL.__name__}_{timestamp}"
     if FOLDER_PREFIX is None:
         FOLDER_PREFIX = FILE_PREFIX
-
-    wandb.init(
-        project="self_balancing_robot",
-        config={
-            "model": args.model,
-            "iterations": ITERATIONS,
-            "processes": PROCESSES,
-            "n_steps": N_STEPS,
-            "buffer_size": BUFFER_SIZE,
-            "xml_file": XML_FILE,
-            "policies_folder": POLICIES_FOLDER,
-            "file_prefix": FILE_PREFIX,
-            "folder_prefix": FOLDER_PREFIX
-        }
-    )
+    
+    if WANDB:
+        wandb.init(
+            project="self_balancing_robot",
+            config={
+                "model": args.model,
+                "iterations": ITERATIONS,
+                "processes": PROCESSES,
+                "n_steps": N_STEPS,
+                "buffer_size": BUFFER_SIZE,
+                "xml_file": XML_FILE,
+                "policies_folder": POLICIES_FOLDER,
+                "file_prefix": FILE_PREFIX,
+                "folder_prefix": FOLDER_PREFIX
+            }
+        )
+    
     print("Training configuration:")
     print(f"  - Model: {MODEL.__name__}")
     print(f"  - Processes: {PROCESSES}")
@@ -197,8 +201,12 @@ if __name__ == "__main__":
     else:
         model = MODEL("MlpPolicy", vec_env, device=DEVICE, verbose=1)
 
-    model.learn(total_timesteps=ITERATIONS,
-                progress_bar=True, callback=WandbCallback())
+    if WANDB:
+        model.learn(total_timesteps=ITERATIONS,
+                    progress_bar=True, callback=WandbCallback())
+    else:
+        model.learn(total_timesteps=ITERATIONS,
+                    progress_bar=True)
 
     model.save(f"{POLICIES_FOLDER}/{FOLDER_PREFIX}/policy")
     print(f"Model saved to {POLICIES_FOLDER}/{FOLDER_PREFIX}/policy.zip")

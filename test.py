@@ -11,6 +11,7 @@ from src.env.robot import SelfBalancingRobotEnv
 from src.utils.files import compress_and_remove
 from src.utils.parser import parse_test_arguments, parse_model
 from src.env.control.pose_control import PoseControl
+from src.env.control.velocity_control import VelocityControl
 
 
 def make_env(environment_path="./models/scene.xml", max_time=float("inf")):
@@ -149,13 +150,15 @@ if __name__ == "__main__":
     # Access the unwrapped environment to get pose_control
     base_env: SelfBalancingRobotEnv = env.unwrapped  # type: ignore
     pose_control: PoseControl = base_env.pose_control
+    velocity_control: VelocityControl = base_env.velocity_control
 
     obs, _ = env.reset()
-    pose_control.generate_random_heading()
+    pose_control.generate_random()
 
     for step in range(args.test_steps):
         # ---- Heading / speed update ----
         if INTERACTIVE:
+            base_env.training = False
             # Arrow-key control
             if keyboard.Key.left in keys_pressed:
                 angle = pose_control.heading_angle + TURN_RATE
@@ -164,11 +167,12 @@ if __name__ == "__main__":
                 angle = pose_control.heading_angle - TURN_RATE
                 pose_control.heading_angle = np.array([np.cos(angle), np.sin(angle)])
             if keyboard.Key.up in keys_pressed:
-                pose_control._speed = min(pose_control._speed + SPEED_STEP, MAX_SPEED)
+                velocity_control.speed = min(velocity_control.speed + SPEED_STEP, MAX_SPEED)
             if keyboard.Key.down in keys_pressed:
-                pose_control._speed = max(pose_control._speed - SPEED_STEP, 0.0)
+                velocity_control.speed = max(velocity_control.speed - SPEED_STEP, -MAX_SPEED)
             if 'r' in keys_pressed:
                 pose_control.reset()
+                velocity_control.speed = 0.0
         else:
             # Automatic random heading updates
             if step > 0 and step % HEADING_UPDATE_INTERVAL == 0:
@@ -186,7 +190,6 @@ if __name__ == "__main__":
             break
         if terminated or truncated:
             obs, _ = env.reset()
-            pose_control.generate_random_heading()
-            print(f"[Step {step}] Reset — new heading angle: {np.degrees(pose_control.heading_angle):.1f}°")
+            pose_control.generate_random()
 
     compress_and_remove(POLICY_FOLDER_PATH)

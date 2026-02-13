@@ -75,12 +75,12 @@ class RewardCalculator:
         else:
             forward_vector = np.array([0.0, 0.0])
         
-        return env.env.pose_control.heading_error(forward_vector)
+        return env.env.pose_control.error(forward_vector)
     
     def _velocity_error(self, env: SelfBalancingRobotEnv) -> float:
         # Compute the velocity error based on the robot's current speed
-        current_speed = (env.env.data.qvel[0] + env.env.data.qvel[1]) / 2  # Average of left and right wheel velocities
-        return env.env.pose_control.velocity_error(current_speed)
+        current_speed = (env.env.data.qvel[6] + env.env.data.qvel[7]) / 2  # Average of left and right wheel velocities
+        return env.env.velocity_control.error(current_speed)
     
     def _pitch(self, env: SelfBalancingRobotEnv) -> float:
         quat = env.env.data.qpos[3:7]  # Assuming the quaternion is in the order [w, x, y, z]
@@ -101,13 +101,6 @@ class RewardCalculator:
         ctrl_variation = env.ctrl_variation
         ctrl = env.ctrl
         pitch = self._pitch(env)
-        
-        # if the heading error is less than a given threshold, update the heading angle
-        if heading_error < 0.1 and np.random.rand() < 0.5:
-            env.env.pose_control.update_heading()
-            
-        if np.random.rand() < 0.5:
-            env.env.pose_control.generate_random_speed()
         
         reward = self.heading_weight * abs(heading_error) * env.env.data.time + \
                  self.velocity_weight * (velocity_error) + \
