@@ -68,8 +68,8 @@ class RewardCalculator:
         quat = env.env.data.qpos[3:7]  # Assuming the quaternion is in the order [w, x, y, z]
         r = R.from_quat([quat[1], quat[2], quat[3], quat[0]]) # Rearrange to [x, y, z, w]
         rot_matrix = r.as_matrix()
-        # The forward direction in the robot's local frame is along the -x axis
-        forward_vector = rot_matrix[:2, 0]  # Negated: robot's front points along -X
+        # The forward direction in the robot's local frame is typically along the x-axis
+        forward_vector = rot_matrix[:2, 0]  # Get the first column of the rotation
         # Normalize the forward vector
         norm = np.linalg.norm(forward_vector)
         if norm > 1e-6:
@@ -96,10 +96,9 @@ class RewardCalculator:
         r = R.from_quat([quat[1], quat[2], quat[3], quat[0]]) # [x, y, z, w]
         rot_matrix = r.as_matrix()
         
-        # 2. Estraiamo il vettore "Forward" del robot (Asse -X locale espresso nel mondo)
+        # 2. Estraiamo il vettore "Forward" del robot (Asse X locale espresso nel mondo)
         # La colonna 0 della matrice di rotazione rappresenta l'asse X del body nel world frame
-        # Il fronte del robot punta lungo -X, quindi neghiamo
-        robot_forward_vector = -rot_matrix[:, 0] 
+        robot_forward_vector = rot_matrix[:, 0] 
         
         # 3. Calcoliamo la velocità proiettata sulla direzione del robot (Dot Product)
         # v_forward = |v| * cos(theta)
