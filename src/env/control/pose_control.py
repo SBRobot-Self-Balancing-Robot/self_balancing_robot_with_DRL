@@ -15,6 +15,13 @@ class PoseControl(BaseControl):
         super().__init__()
         self._heading = np.array([0.0, 0.0])          # Unit heading vector (pointing along x-axis)
 
+        # Hold mechanism: keep heading stable for a minimum number of steps
+        self._hold_steps: int = 0                      # Counter: steps the current heading has been held
+        self._min_hold_steps: int = 50                  # Minimum steps before heading can change
+        self._heading_error_threshold: float = 0.1     # Error threshold to consider heading "reached"
+        self._consecutive_good_steps: int = 0          # Steps with error below threshold
+        self._good_steps_required: int = 20            # Consecutive good steps required to allow change
+
     # ------------------------------------------------------------------ #
     #                         PROPERTIES                                  #
     # ------------------------------------------------------------------ #
@@ -43,19 +50,53 @@ class PoseControl(BaseControl):
         """Set the heading from a yaw angle (radians). Z component is kept at 0."""
         self._heading = np.array([versor[0], versor[1]])
 
+    @property
+    def hold_steps(self) -> int:
+        """Get the number of steps the current heading has been held."""
+        return self._hold_steps
+
+    @property
+    def is_ready_to_change(self) -> bool:
+        """Check if enough hold time has passed AND the heading has been tracked well."""
+        return (self._hold_steps >= self._min_hold_steps and
+                self._consecutive_good_steps >= self._good_steps_required)
+
     # ------------------------------------------------------------------ #
     #                    RANDOM GENERATION METHODS                        #
     # ------------------------------------------------------------------ #
 
-    def update(self):
+    def update(self, heading_error: float = 0.0) -> None:
         """
-        Update the heading vector based on the current heading angle.
+        Update the heading with a hold mechanism.
+
+        The heading is kept stable for at least `_min_hold_steps` steps.
+        After that, it can change only when the robot has tracked the current
+        heading well enough (consecutive good steps above threshold).
+
+        Args:
+            heading_error: The current signed heading error (radians).
         """
-        # Update the heading vector adding or subtracting a random angle between 10 and -10 degrees wrt the current angle
+        self._hold_steps += 1
+
+        # Track consecutive steps with small heading error
+        if abs(heading_error) < self._heading_error_threshold:
+            self._consecutive_good_steps += 1
+        else:
+            self._consecutive_good_steps = 0
+
+        # Only apply an incremental change when the hold criteria are met
+        if not self.is_ready_to_change:
+            return
+
+        # Apply a small random perturbation to the heading
         delta_angle = np.deg2rad(np.random.uniform(-10, 10))
         current_angle = self.heading_angle
         new_angle = current_angle + delta_angle
         self.heading_angle = np.array([np.cos(new_angle), np.sin(new_angle)])
+
+        # Reset hold counters
+        self._hold_steps = 0
+        self._consecutive_good_steps = 0
 
     def generate_random(self) -> np.ndarray:
         """
@@ -66,6 +107,8 @@ class PoseControl(BaseControl):
         """
         yaw = np.random.uniform(-np.pi, np.pi)
         self._heading = np.array([np.cos(yaw), np.sin(yaw)])
+        self._hold_steps = 0
+        self._consecutive_good_steps = 0
         return self._heading.copy()
 
     # ------------------------------------------------------------------ #
@@ -116,6 +159,8 @@ class PoseControl(BaseControl):
     def reset(self) -> None:
         """Reset all pose control parameters to their default values."""
         self._heading = np.array([1.0, 0.0])
+        self._hold_steps = 0
+        self._consecutive_good_steps = 0
 
     # ------------------------------------------------------------------ #
     #                         DUNDER METHODS                             #

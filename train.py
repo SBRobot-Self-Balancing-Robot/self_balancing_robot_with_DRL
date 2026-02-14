@@ -270,8 +270,9 @@ if __name__ == "__main__":
     combined_callback = CallbackList(callbacks)
 
     # --- Training Loop Configuration ---
-    # Define how many loops/cycles to perform
-    NUM_CYCLES = 10 # Example: Split total iterations into 10 cycles
+    # Split the overall training into multiple cycles, each of a given time duration
+    CYCLE_DURATION = 180 # seconds for the iteration
+    NUM_CYCLES = 10
     TOTAL_TIMESTEPS_PER_CYCLE = ITERATIONS // NUM_CYCLES
     
     print(f"Starting training loop: {NUM_CYCLES} cycles of {TOTAL_TIMESTEPS_PER_CYCLE} steps each.")

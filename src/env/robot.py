@@ -96,8 +96,7 @@ class SelfBalancingRobotEnv(gym.Env):
         heading_error = self.pose_control.error_with_quaternion(quat=self.data.qpos[3:7])
         current_avg_speed = (self.data.qvel[6] + self.data.qvel[7]) / 2
         if self.training:
-            if heading_error < 0.1:
-                self.pose_control.update()
+            self.pose_control.update(heading_error=heading_error)
 
             # Update velocity control: tracks hold time, checks convergence,
             # applies incremental changes, and attenuates speed when heading error is large
@@ -209,7 +208,7 @@ class SelfBalancingRobotEnv(gym.Env):
         self.Q = np.array([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]])
         
         r = R.from_euler('xyz', euler).as_matrix()
-        x_head = r[:2, 0]
+        x_head = r[:2, 0]  # Negated: robot's front points along -X
         norm = np.linalg.norm(x_head)
         if norm > 1e-6:
             unit_vector = x_head / norm
@@ -317,6 +316,7 @@ class SelfBalancingRobotEnv(gym.Env):
 
         # Reset velocity control (keeps curriculum phase across episodes)
         self.velocity_control.reset()
+        self.velocity_control.generate_random()
 
         # Reset pose control
         self.pose_control.reset()
@@ -336,7 +336,7 @@ class SelfBalancingRobotEnv(gym.Env):
 
             # --- Desired heading (green) from PoseControl ---
             desired_heading = self.pose_control.heading
-            desired_vector = np.array([desired_heading[0], desired_heading[1], 0.0])
+            desired_vector = np.array([-desired_heading[0], -desired_heading[1], 0.0])
 
             # --- Current heading (red) from robot pose, attached to chassis ---
             chassis_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "Chassis")
